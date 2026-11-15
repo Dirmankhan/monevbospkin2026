@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monev BOSP Kinerja Terbaik</title>
+<meta name="description" content="Dashboard hasil monitoring dan evaluasi pelaksanaan BOSP Kinerja Terbaik pada satuan pendidikan di Provinsi Nusa Tenggara Barat.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  /* Layout: single scrolling page, header -> KPI cards -> charts grid -> issues -> full table -> methodology footer */
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --fg:#1c1a17; --fg-muted:#6b6560; --border:#e4e0da;
+    --accent:#1f6f54; --accent-soft:#e3efe9;
+    --ok:#1f8a5f; --warn:#c8792a; --bad:#c23b3b;
+    --chart-muted:#c9c2b7; --chart-grid:#e9e5de; --chart-axis:#cfc9bd; --text-secondary:#8a8378;
+    --surface-popover:#201d1a; --shadow-popover:0 6px 20px rgba(0,0,0,.25);
+    --font-display:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body:'Inter', ui-sans-serif, system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17150f; --panel:#201d18; --fg:#f1ede6; --fg-muted:#a39b8f; --border:#352f28;
+      --accent:#5fcf9f; --accent-soft:#1d332a;
+      --ok:#4cd08a; --warn:#e0a855; --bad:#e2685f;
+      --chart-muted:#4a443c; --chart-grid:#2c2822; --chart-axis:#423c34; --text-secondary:#9b9388;
+      --surface-popover:#2a261f; --shadow-popover:0 6px 20px rgba(0,0,0,.5);
+      color-scheme: dark;
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body); }
+  body{ padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); }
+  .wrap{ max-width:1180px; margin:0 auto; padding:28px 0 56px; display:flex; flex-direction:column; gap:28px; }
+  header.page-head h1{ font-family:var(--font-display); font-weight:600; font-size:clamp(1.6rem,4vw,2.1rem); margin:0 0 6px; text-wrap:balance; }
+  header.page-head p{ margin:0; color:var(--fg-muted); max-width:66ch; line-height:1.5; }
+  header.page-head .headline{ margin-top:10px; color:var(--fg); }
+  header.page-head .headline b{ font-variant-numeric:tabular-nums; }
+  .meta-row{ display:flex; align-items:center; gap:10px; margin-top:14px; font-size:.85rem; color:var(--fg-muted); flex-wrap:wrap; }
+  .meta-row button{ font:inherit; font-size:.85rem; border:1px solid var(--border); background:var(--panel); color:var(--fg); padding:6px 12px; border-radius:999px; cursor:pointer; }
+  .meta-row button:hover{ border-color:var(--accent); color:var(--accent); }
+  .state-note{ font-size:.85rem; color:var(--fg-muted); }
+  .kpi-grid{ display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:14px; }
+  .kpi{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .kpi .label{ font-size:.72rem; color:var(--fg-muted); text-transform:uppercase; letter-spacing:.05em; }
+  .kpi .value{ font-family:var(--font-display); font-weight:600; font-size:1.7rem; font-variant-numeric:tabular-nums; }
+  .kpi .sub{ font-size:.75rem; color:var(--fg-muted); }
+  section.panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:22px; min-width:0; }
+  section.panel h2{ font-family:var(--font-display); font-size:1.1rem; font-weight:600; margin:0 0 2px; }
+  section.panel .panel-sub{ font-size:.82rem; color:var(--fg-muted); margin:0 0 14px; }
+  .chart-box{ width:100%; min-height:120px; }
+  .chart-box svg text{ fill:var(--text-secondary); font-size:11px; font-family:var(--font-body); }
+  .chart-box .bar-label{ fill:var(--fg); font-size:11px; }
+  .chart-box .value-label{ fill:var(--fg); font-size:11px; font-variant-numeric:tabular-nums; }
+  .tooltip{ position:absolute; pointer-events:none; background:var(--surface-popover); color:#fff; border-radius:8px; padding:6px 10px; font-size:.78rem; opacity:0; transition:opacity .1s; z-index:5; max-width:240px; box-shadow:var(--shadow-popover); }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font-size:.78rem; color:var(--fg-muted); margin-top:10px; }
+  .legend .dot{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+  .table-controls{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .table-controls input[type=search], .table-controls select{ font-family:inherit; font-size:.9rem; border:1px solid var(--border); border-radius:10px; padding:8px 12px; background:var(--bg); color:var(--fg); min-width:180px; }
+  .table-controls input[type=search]{ flex:1; }
+  .table-scroll{ overflow-x:auto; }
+  table.rank-table{ width:100%; border-collapse:collapse; font-size:.88rem; min-width:760px; }
+  table.rank-table.kendala-sekolah{ min-width:620px; }
+  table.rank-table th, table.rank-table td{ text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.rank-table td.wrap, table.rank-table th.wrap{ white-space:normal; }
+  table.rank-table th{ font-size:.72rem; color:var(--fg-muted); font-weight:600; cursor:pointer; user-select:none; text-transform:uppercase; letter-spacing:.03em; }
+  table.rank-table th.num, table.rank-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.rank-table tbody tr:hover{ background:var(--accent-soft); }
+  .tier-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.75rem; font-weight:600; }
+  .tier-sb, .tier-b{ background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); }
+  .tier-c{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
+  .tier-p{ background:color-mix(in srgb, var(--bad) 18%, transparent); color:var(--bad); }
+  details.method{ font-size:.9rem; color:var(--fg-muted); background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 22px; }
+  details.method summary{ cursor:pointer; color:var(--fg); font-weight:600; }
+  details.method ul{ margin:10px 0; padding-left:1.2em; }
+  details.method li{ margin-bottom:4px; }
+  footer.page-foot{ font-size:.78rem; color:var(--fg-muted); text-align:center; padding-top:8px; }
+  footer.page-foot a{ color:var(--accent); }
+  @media (max-width: 760px){
+    .kpi-grid{ grid-template-columns:repeat(2,1fr); }
+    .two-col{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <h1>Monev BOSP Kinerja Terbaik</h1>
+    <p>Hasil pemantauan dan evaluasi pelaksanaan Bantuan Operasional Satuan Pendidikan (BOSP) Kinerja Terbaik pada satuan pendidikan penerima di Provinsi Nusa Tenggara Barat, dihimpun langsung dari jawaban formulir monev.</p>
+    <p class="headline" id="headline">Memuat data…</p>
+    <div class="meta-row">
+      <span id="last-updated">Memuat…</span>
+      <button id="refresh-btn" type="button">Muat ulang data</button>
+    </div>
+  </header>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="label">Satuan Pendidikan Mengisi</div>
+      <div class="value" id="kpi-jumlah">—</div>
+      <div class="sub">responden monev BOSP Kinerja Terbaik</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Dana Diterima</div>
+      <div class="value" id="kpi-dana">—</div>
+      <div class="sub">akumulasi dana BOSP Kinerja Terbaik</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Rata-rata Skor Kinerja</div>
+      <div class="value" id="kpi-skor">—</div>
+      <div class="sub">skala 0–100, lihat metodologi</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Rata-rata Serapan Dana</div>
+      <div class="value" id="kpi-serapan">—</div>
+      <div class="sub">perkiraan serapan s.d. akhir TA 2026</div>
+    </div>
+  </div>
+
+  <section class="panel" id="peringkat">
+    <h2>Peringkat Skor Kinerja per Satuan Pendidikan</h2>
+    <p class="panel-sub">Skor komposit 0–100 dari lima dimensi monev. Diurutkan dari skor tertinggi.</p>
+    <div class="chart-box" id="chart-peringkat"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--ok)"></span>Sangat Baik / Baik (≥ 80)</span>
+      <span><span class="dot" style="background:var(--warn)"></span>Cukup (65–79)</span>
+      <span><span class="dot" style="background:var(--bad)"></span>Perlu Perbaikan (&lt; 65)</span>
+    </div>
+  </section>
+
+  <div class="two-col">
+    <section class="panel" id="wilayah">
+      <h2>Rata-rata Skor per Kabupaten/Kota</h2>
+      <p class="panel-sub">Jumlah di ujung batang menunjukkan banyaknya satuan pendidikan responden.</p>
+      <div class="chart-box" id="chart-wilayah"></div>
+    </section>
+
+    <section class="panel" id="kepatuhan">
+      <h2>Kepatuhan Administrasi Keuangan</h2>
+      <p class="panel-sub">Kelengkapan bukti belanja, pencatatan BKU ARKAS, dan kesiapan laporan pelaksanaan.</p>
+      <div class="chart-box" id="chart-kepatuhan"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="anggaran">
+    <h2>Rencana vs Realisasi Anggaran per Komponen</h2>
+    <p class="panel-sub">Akumulasi seluruh satuan pendidikan, tiga komponen pembiayaan BOSP Kinerja Terbaik (Rp).</p>
+    <div class="chart-box" id="chart-anggaran"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--chart-muted)"></span>Rencana (RKAS)</span>
+      <span><span class="dot" style="background:var(--ok)"></span>Realisasi</span>
+    </div>
+  </section>
+
+  <section class="panel" id="kendala">
+    <h2>Ringkasan Kendala Pelaksanaan</h2>
+    <p class="panel-sub">Jenis kendala yang paling banyak dijumpai pada satuan pendidikan responden, berdasarkan jawaban monev.</p>
+    <div class="table-scroll">
+      <table class="rank-table">
+        <thead><tr><th class="wrap">Jenis Kendala</th><th class="num">Jumlah SP</th><th class="num">% dari Total</th></tr></thead>
+        <tbody id="kendala-summary-body"></tbody>
+      </table>
+    </div>
+    <p class="panel-sub" style="margin-top:18px; margin-bottom:8px;">Satuan pendidikan dengan kendala terbanyak sekaligus — perlu perhatian khusus.</p>
+    <div class="table-scroll">
+      <table class="rank-table kendala-sekolah">
+        <thead><tr><th>Satuan Pendidikan</th><th>Kabupaten/Kota</th><th class="num">Jumlah Kendala</th><th class="wrap">Daftar Kendala</th></tr></thead>
+        <tbody id="kendala-sekolah-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="tabel">
+    <h2>Tabel Peringkat Lengkap</h2>
+    <p class="panel-sub">Klik judul kolom untuk mengurutkan. Gunakan pencarian dan filter untuk menyaring satuan pendidikan.</p>
+    <div class="table-controls">
+      <input type="search" id="tabel-cari" placeholder="Cari nama satuan pendidikan atau NPSN...">
+      <select id="tabel-jenjang" aria-label="Filter jenjang"></select>
+      <select id="tabel-kabkota" aria-label="Filter kabupaten/kota"></select>
+    </div>
+    <div class="table-scroll">
+      <table class="rank-table">
+        <thead>
+          <tr>
+            <th class="num" data-sort="rank">Peringkat</th>
+            <th data-sort="sekolah">Satuan Pendidikan</th>
+            <th data-sort="jenjang">Jenjang</th>
+            <th data-sort="kabkota">Kabupaten/Kota</th>
+            <th class="num" data-sort="dana">Dana (Rp)</th>
+            <th class="num" data-sort="admin_score">Admin</th>
+            <th class="num" data-sort="serapan_score">Serapan</th>
+            <th class="num" data-sort="bimtek_score">Bimtek</th>
+            <th class="num" data-sort="implementasi_score">Implementasi</th>
+            <th class="num" data-sort="skor_total">Skor Total</th>
+            <th data-sort="kategori">Kategori</th>
+          </tr>
+        </thead>
+        <tbody id="tabel-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <details class="method">
+    <summary>Metodologi skor kinerja</summary>
+    <p>Skor kinerja (0–100) dihitung sebagai komposit tertimbang dari lima dimensi jawaban monev, mengikuti struktur isian formulir BOSP Kinerja Terbaik:</p>
+    <ul>
+      <li><b>Kepatuhan administrasi keuangan (bobot 30%)</b> — rata-rata kelengkapan bukti belanja, pencatatan di BKU ARKAS, dan kesiapan laporan pelaksanaan.</li>
+      <li><b>Serapan dana (bobot 15%)</b> — perkiraan persentase serapan dana sampai akhir tahun anggaran 2026.</li>
+      <li><b>Partisipasi &amp; kebermanfaatan bimtek (bobot 20%)</b> — rata-rata keikutsertaan pada tiga jenis bimtek (SPMI, Literasi-Numerasi, Digitalisasi Pembelajaran) dan tingkat kebermanfaatannya.</li>
+      <li><b>Implementasi pembelajaran &amp; tata kelola (bobot 25%)</b> — rata-rata persentase RTL tata kelola/SPMI yang terlaksana, proporsi guru yang menerapkan perangkat literasi-numerasi, dan pemanfaatan Rapor Pendidikan untuk perencanaan.</li>
+      <li><b>Inovasi &amp; publikasi praktik baik (bobot 10%)</b> — status publikasi digital praktik baik pembelajaran.</li>
+    </ul>
+    <p>Kategori: Sangat Baik (≥ 90), Baik (80–89), Cukup (65–79), Perlu Perbaikan (&lt; 65). Pembobotan ini adalah rumusan kerja untuk kebutuhan pemantauan internal dan dapat disesuaikan sesuai kebijakan yang berlaku.</p>
+  </details>
+
+  <footer class="page-foot">
+    Data diambil langsung dari <a href="https://docs.google.com/spreadsheets/d/1VsRAx_flNt5xJgI3im_uXZy9_A69dKlrrs01nHXSJhU/edit" target="_blank" rel="noopener">Google Sheets</a> (tab "Dashboard Data", dipublikasikan sebagai CSV, tanpa data pribadi). Halaman ini statis dan dapat diakses tanpa login; data dimuat ulang otomatis setiap beberapa menit.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // ====== CONFIG ======
+  // URL CSV hasil "Publish to web" dari tab "Dashboard Data" (Google Sheets).
+  var CSV_URL = "REPLACE_WITH_PUBLISHED_CSV_URL";
+  var AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+
+  // ====== helpers: category -> score (sama dengan versi Claude Artifact) ======
+  function scoreKelengkapan(v){
+    if (!v) return 0;
+    if (v.indexOf('Lengkap untuk seluruh') === 0) return 100;
+    if (v.indexOf('Lengkap untuk sebagian') === 0) return 65;
+    return 30;
+  }
+  function scorePencatatan(v){
+    if (!v) return 0;
+    if (v === 'Seluruh transaksi telah dicatat') return 100;
+    if (v === 'Sebagian transaksi telah dicatat') return 60;
+    return 20;
+  }
+  function scoreKesiapan(v){
+    if (!v) return 0;
+    if (v === 'Sudah mulai disusun') return 100;
+    if (v.indexOf('dokumentasi kegiatan sudah dikumpulkan') >= 0) return 55;
+    return 20;
+  }
+  function scoreSerapan(v){
+    if (!v) return 0;
+    if (v.indexOf('100%') === 0) return 100;
+    if (v.indexOf('75%') === 0) return 85;
+    if (v.indexOf('50%') === 0) return 60;
+    if (v.indexOf('26%') === 0) return 40;
+    if (v.indexOf('0%') === 0) return 20;
+    return 50;
+  }
+  function scoreManfaatBimtek(v){
+    if (!v) return 0;
+    if (v === 'Sangat bermanfaat') return 100;
+    if (v === 'Bermanfaat') return 70;
+    return 40;
+  }
+  function scoreRtl(v){
+    if (!v) return 0;
+    if (v.indexOf('76%') === 0) return 100;
+    if (v.indexOf('51%') === 0) return 75;
+    if (v.indexOf('26%') === 0) return 50;
+    return 25;
+  }
+  function scoreManfaatRapor(v){
+    if (!v) return 0;
+    if (v.indexOf('terdokumentasi') >= 0 && v.indexOf('belum terdokumentasi') < 0) return 100;
+    if (v.indexOf('Dimanfaatkan') >= 0) return 60;
+    return 20;
+  }
+  function scorePublikasi(v){
+    if (!v) return 0;
+    if (v === 'Sudah dilaksanakan') return 100;
+    return 40;
+  }
+  function num(x){ var n = Number(String(x == null ? '' : x).replace(/[^0-9.-]/g,'')); return isNaN(n) ? 0 : n; }
+  function fmtRupiah(n){ n = Math.round(n || 0); return 'Rp ' + n.toLocaleString('id-ID'); }
+  function fmtRupiahShort(n){
+    n = n || 0;
+    if (n >= 1e9) return 'Rp ' + (n/1e9).toFixed(2).replace(/\.00$/,'') + ' M';
+    if (n >= 1e6) return 'Rp ' + (n/1e6).toFixed(1).replace(/\.0$/,'') + ' jt';
+    return fmtRupiah(n);
+  }
+  function kategoriOf(total){
+    if (total >= 90) return 'Sangat Baik';
+    if (total >= 80) return 'Baik';
+    if (total >= 65) return 'Cukup';
+    return 'Perlu Perbaikan';
+  }
+  function tierClass(kat){
+    if (kat === 'Sangat Baik') return 'tier-sb';
+    if (kat === 'Baik') return 'tier-b';
+    if (kat === 'Cukup') return 'tier-c';
+    return 'tier-p';
+  }
+  function tierColorVar(kat){
+    if (kat === 'Sangat Baik' || kat === 'Baik') return 'var(--ok)';
+    if (kat === 'Cukup') return 'var(--warn)';
+    return 'var(--bad)';
+  }
+
+  function kendalaListOf(r){
+    var list = [];
+    if (r.kelengkapan_bukti !== 'Lengkap untuk seluruh transaksi') list.push('Bukti belanja belum lengkap');
+    if (r.pencatatan_bku !== 'Seluruh transaksi telah dicatat') list.push('Pencatatan BKU ARKAS belum lengkap');
+    if (r.kesiapan_laporan !== 'Sudah mulai disusun') list.push('Laporan pelaksanaan belum disusun');
+    if (r.serapan && (r.serapan.indexOf('50%') === 0 || r.serapan.indexOf('26%') === 0 || r.serapan.indexOf('0%') === 0)) list.push('Serapan dana masih rendah');
+    if (r.rtl_pct && (r.rtl_pct.indexOf('0%') === 0 || r.rtl_pct.indexOf('26%') === 0)) list.push('RTL tata kelola/SPMI masih rendah');
+    if (r.manfaat_rapor && r.manfaat_rapor.indexOf('belum terdokumentasi') >= 0) list.push('Pemanfaatan Rapor Pendidikan belum terdokumentasi');
+    if (r.publikasi !== 'Sudah dilaksanakan') list.push('Publikasi praktik baik belum dilaksanakan');
+    return list;
+  }
+
+  // ====== data pipeline ======
+  function computeSkor(rows){
+    var out = rows.map(function(r){
+      var admin = (scoreKelengkapan(r.kelengkapan_bukti) + scorePencatatan(r.pencatatan_bku) + scoreKesiapan(r.kesiapan_laporan)) / 3;
+      var serapan = scoreSerapan(r.serapan);
+      var ikutCount = (r.ikut_spmi === 'Ikut' ? 1 : 0) + (r.ikut_litnum === 'Ikut' ? 1 : 0) + (r.ikut_digital === 'Ikut' ? 1 : 0);
+      var partisipasi = ikutCount / 3 * 100;
+      var manfaat = scoreManfaatBimtek(r.manfaat_bimtek);
+      var bimtek = (partisipasi + manfaat) / 2;
+      var rtl = scoreRtl(r.rtl_pct);
+      var guruRatio = r.guru_total > 0 ? Math.min(100, r.guru_terap / r.guru_total * 100) : 0;
+      var rapor = scoreManfaatRapor(r.manfaat_rapor);
+      var implementasi = (rtl + guruRatio + rapor) / 3;
+      var inovasi = scorePublikasi(r.publikasi);
+      var total = 0.30*admin + 0.15*serapan + 0.20*bimtek + 0.25*implementasi + 0.10*inovasi;
+      total = Math.round(total * 10) / 10;
+      return {
+        npsn: r.npsn, sekolah: r.sekolah, jenjang: r.jenjang, kabkota: r.kabkota, dana: r.dana,
+        admin_score: Math.round(admin*10)/10, serapan_score: Math.round(serapan*10)/10,
+        bimtek_score: Math.round(bimtek*10)/10, implementasi_score: Math.round(implementasi*10)/10,
+        inovasi_score: Math.round(inovasi*10)/10, skor_total: total, kategori: kategoriOf(total)
+      };
+    });
+    out.sort(function(a,b){ return b.skor_total - a.skor_total; });
+    out.forEach(function(r, i){ r.rank = i + 1; });
+    return out;
+  }
+
+  function computeSkorPerKabkota(skor){
+    var g = {};
+    skor.forEach(function(r){
+      var k = r.kabkota || 'Tidak diketahui';
+      if (!g[k]) g[k] = { kabkota: k, total: 0, jumlah: 0 };
+      g[k].total += r.skor_total; g[k].jumlah += 1;
+    });
+    var out = Object.keys(g).map(function(k){ return { kabkota: k, avg_skor: Math.round(g[k].total / g[k].jumlah * 10) / 10, jumlah: g[k].jumlah }; });
+    out.sort(function(a,b){ return b.avg_skor - a.avg_skor; });
+    return out;
+  }
+
+  function computeRealisasiKomponen(rows){
+    var lit = {komponen:'Literasi-Numerasi', rencana:0, realisasi:0};
+    var dig = {komponen:'Digitalisasi Pembelajaran', rencana:0, realisasi:0};
+    var spmi = {komponen:'Tata Kelola / SPMI', rencana:0, realisasi:0};
+    rows.forEach(function(r){
+      lit.rencana += r.lit_plan; lit.realisasi += r.lit_real;
+      dig.rencana += r.digital_plan; dig.realisasi += r.digital_real;
+      spmi.rencana += r.spmi_plan; spmi.realisasi += r.spmi_real;
+    });
+    return [lit, dig, spmi];
+  }
+
+  function computeKepatuhan(rows){
+    function tier(score){ return score >= 90 ? 'Baik' : (score >= 55 ? 'Cukup' : 'Kurang'); }
+    var out = [];
+    [
+      {key:'kelengkapan_bukti', label:'Kelengkapan Bukti Belanja', fn:scoreKelengkapan},
+      {key:'pencatatan_bku', label:'Pencatatan BKU ARKAS', fn:scorePencatatan},
+      {key:'kesiapan_laporan', label:'Kesiapan Laporan', fn:scoreKesiapan}
+    ].forEach(function(ind){
+      var counts = {Baik:0, Cukup:0, Kurang:0};
+      rows.forEach(function(r){ counts[tier(ind.fn(r[ind.key]))]++; });
+      ['Baik','Cukup','Kurang'].forEach(function(t){ out.push({indikator: ind.label, kategori: t, jumlah: counts[t]}); });
+    });
+    return out;
+  }
+
+  function computeKendalaSummary(rows){
+    var total = rows.length || 1;
+    var counts = {};
+    rows.forEach(function(r){ kendalaListOf(r).forEach(function(k){ counts[k] = (counts[k] || 0) + 1; }); });
+    var out = Object.keys(counts).map(function(k){ return { jenis: k, jumlah: counts[k], persen: Math.round(counts[k] / total * 100) }; });
+    out.sort(function(a,b){ return b.jumlah - a.jumlah; });
+    return out;
+  }
+
+  function computeKendalaSekolah(rows){
+    var out = rows.map(function(r){
+      var list = kendalaListOf(r);
+      return { npsn: r.npsn, sekolah: r.sekolah, kabkota: r.kabkota, jumlah_kendala: list.length, daftar_kendala: list.join('; ') };
+    });
+    out.sort(function(a,b){ return b.jumlah_kendala - a.jumlah_kendala; });
+    return out;
+  }
+
+  // ====== chart drawing (d3) ======
+  function drawHBar(el, data, opts){
+    opts = opts || {};
+    var labelKey = opts.labelKey, valueKey = opts.valueKey, colorFn = opts.colorFn || function(){ return 'var(--chart-muted)'; };
+    var valueFmt = opts.valueFmt || function(v){ return String(v); };
+    var suffix = opts.suffix || function(){ return ''; };
+    var width = el.clientWidth || 600;
+    var rowH = opts.rowH || 26;
+    var margin = { top: 6, right: 56, bottom: 6, left: 10 };
+    var labelW = 0;
+    var tmp = d3.select(el).append('svg').style('position','absolute').style('visibility','hidden');
+    data.forEach(function(d){
+      var t = tmp.append('text').attr('class','bar-label').text(d[labelKey]);
+      labelW = Math.max(labelW, t.node().getComputedTextLength());
+    });
+    tmp.remove();
+    labelW = Math.min(labelW + 10, width * 0.42);
+    var plotW = Math.max(40, width - margin.left - margin.right - labelW);
+    var height = data.length * rowH + margin.top + margin.bottom;
+
+    d3.select(el).selectAll('svg').remove();
+    var svg = d3.select(el).append('svg')
+      .attr('width', '100%').attr('viewBox', '0 0 ' + width + ' ' + height)
+      .attr('role','img').attr('aria-label', opts.ariaLabel || 'Diagram batang');
+
+    var maxVal = d3.max(data, function(d){ return d[valueKey]; }) || 1;
+    var x = d3.scaleLinear().domain([0, maxVal * 1.08]).range([0, plotW]);
+    var y = d3.scaleBand().domain(d3.range(data.length)).range([margin.top, margin.top + data.length*rowH]).padding(0.22);
+
+    var g = svg.append('g').attr('transform', 'translate(' + (margin.left+labelW) + ',0)');
+
+    var ticks = x.ticks(4).filter(function(t){ return t > 0; });
+    g.selectAll('line.grid').data(ticks).enter().append('line').attr('class','grid')
+      .attr('x1', x).attr('x2', x).attr('y1', margin.top).attr('y2', margin.top + data.length*rowH)
+      .attr('stroke', 'var(--chart-grid)');
+
+    var rows = g.selectAll('g.row').data(data).enter().append('g').attr('class','row')
+      .attr('transform', function(d,i){ return 'translate(0,' + y(i) + ')'; });
+
+    rows.append('rect').attr('class','bar')
+      .attr('x', 0).attr('y', 0).attr('height', y.bandwidth())
+      .attr('fill', function(d){ return colorFn(d); }).attr('rx', 2)
+      .attr('width', function(d){ return Math.max(1, x(d[valueKey])); })
+      .on('mousemove', function(ev, d){ opts.onHover && opts.onHover(ev, d); })
+      .on('mouseleave', function(){ opts.onLeave && opts.onLeave(); });
+
+    rows.append('text').attr('class','value-label')
+      .attr('y', y.bandwidth()/2 + 4).attr('text-anchor','start')
+      .attr('x', function(d){ return x(d[valueKey]) + 6; })
+      .text(function(d){ return valueFmt(d[valueKey]) + suffix(d); });
+
+    g.selectAll('text.rowlabel').data(data).enter().append('text').attr('class','rowlabel bar-label')
+      .attr('x', -8).attr('text-anchor', 'end')
+      .attr('y', function(d,i){ return y(i) + y.bandwidth()/2 + 4; })
+      .text(function(d){ return d[labelKey]; });
+  }
+
+  function drawGroupedBar(el, data){
+    var width = el.clientWidth || 600;
+    var height = 260;
+    var margin = { top: 16, right: 10, bottom: 56, left: 64 };
+    var plotW = width - margin.left - margin.right;
+    var plotH = height - margin.top - margin.bottom;
+
+    d3.select(el).selectAll('svg').remove();
+    var svg = d3.select(el).append('svg')
+      .attr('width','100%').attr('viewBox','0 0 ' + width + ' ' + height)
+      .attr('role','img').attr('aria-label','Rencana versus realisasi anggaran per komponen');
+
+    var x0 = d3.scaleBand().domain(data.map(function(d){ return d.komponen; })).range([0, plotW]).padding(0.25);
+    var x1 = d3.scaleBand().domain(['rencana','realisasi']).range([0, x0.bandwidth()]).padding(0.15);
+    var maxVal = d3.max(data, function(d){ return Math.max(d.rencana, d.realisasi); }) || 1;
+    var y = d3.scaleLinear().domain([0, maxVal*1.12]).range([plotH, 0]);
+
+    var g = svg.append('g').attr('transform','translate('+margin.left+','+margin.top+')');
+
+    var yAxis = g.append('g').attr('class','axis');
+    yAxis.call(d3.axisLeft(y).ticks(4).tickFormat(function(v){ return fmtRupiahShort(v); }));
+    yAxis.selectAll('text').attr('fill','var(--text-secondary)');
+    yAxis.selectAll('path,line').attr('stroke','var(--chart-axis)');
+
+    var xAxis = g.append('g').attr('class','axis').attr('transform','translate(0,'+plotH+')');
+    xAxis.call(d3.axisBottom(x0));
+    xAxis.selectAll('text').attr('fill','var(--text-secondary)')
+      .attr('transform', width < 520 ? 'rotate(-14)' : null).style('text-anchor', width < 520 ? 'end' : 'middle');
+    xAxis.selectAll('path,line').attr('stroke','var(--chart-axis)');
+
+    var groups = g.selectAll('g.group').data(data).enter().append('g').attr('class','group')
+      .attr('transform', function(d){ return 'translate(' + x0(d.komponen) + ',0)'; });
+
+    ['rencana','realisasi'].forEach(function(key){
+      groups.append('rect').attr('class', key)
+        .attr('x', x1(key)).attr('width', x1.bandwidth())
+        .attr('fill', key === 'rencana' ? 'var(--chart-muted)' : 'var(--ok)')
+        .attr('rx', 2)
+        .attr('y', function(d){ return y(d[key]); })
+        .attr('height', function(d){ return plotH - y(d[key]); })
+        .on('mousemove', function(ev,d){ showTip(ev, (key === 'rencana' ? 'Rencana' : 'Realisasi') + ' — ' + d.komponen + ': ' + fmtRupiah(d[key])); })
+        .on('mouseleave', hideTip);
+    });
+  }
+
+  function drawStacked(el, data){
+    var indikators = Array.from(new Set(data.map(function(d){ return d.indikator; })));
+    var cats = ['Baik','Cukup','Kurang'];
+    var colorOf = { Baik: 'var(--ok)', Cukup: 'var(--warn)', Kurang: 'var(--bad)' };
+    var width = el.clientWidth || 600;
+    var rowH = 46;
+    var margin = { top: 8, right: 10, bottom: 8, left: 10 };
+    var labelW = 0;
+    var tmp = d3.select(el).append('svg').style('position','absolute').style('visibility','hidden');
+    indikators.forEach(function(lab){
+      var t = tmp.append('text').attr('class','bar-label').text(lab);
+      labelW = Math.max(labelW, t.node().getComputedTextLength());
+    });
+    tmp.remove();
+    labelW = Math.min(labelW + 10, width * 0.42);
+    var plotW = Math.max(40, width - margin.left - margin.right - labelW);
+    var height = indikators.length * rowH + margin.top + margin.bottom;
+
+    d3.select(el).selectAll('svg').remove();
+    var svg = d3.select(el).append('svg')
+      .attr('width','100%').attr('viewBox','0 0 '+width+' '+height)
+      .attr('role','img').attr('aria-label','Kepatuhan administrasi per indikator');
+
+    var y = d3.scaleBand().domain(indikators).range([margin.top, margin.top + indikators.length*rowH]).padding(0.3);
+    var g = svg.append('g').attr('transform','translate('+(margin.left+labelW)+',0)');
+
+    var rowsData = indikators.map(function(ind){
+      var items = data.filter(function(d){ return d.indikator === ind; });
+      var total = d3.sum(items, function(d){ return d.jumlah; }) || 1;
+      var x0 = 0;
+      var segs = cats.map(function(c){
+        var item = items.find(function(d){ return d.kategori === c; }) || {jumlah:0};
+        var w = item.jumlah / total * plotW;
+        var seg = { indikator: ind, kategori: c, jumlah: item.jumlah, x0: x0, w: w };
+        x0 += w;
+        return seg;
+      });
+      return { indikator: ind, segs: segs };
+    });
+
+    var rows = g.selectAll('g.row').data(rowsData).enter().append('g').attr('class','row')
+      .attr('transform', function(d){ return 'translate(0,' + y(d.indikator) + ')'; });
+
+    rows.selectAll('rect.seg').data(function(d){ return d.segs; }).enter().append('rect').attr('class','seg')
+      .attr('y', 0).attr('height', y.bandwidth())
+      .attr('fill', function(d){ return colorOf[d.kategori]; })
+      .attr('x', function(d){ return d.x0; })
+      .attr('width', function(d){ return Math.max(0, d.w - 1); })
+      .on('mousemove', function(ev,d){ showTip(ev, d.indikator + ' — ' + d.kategori + ': ' + d.jumlah + ' sekolah'); })
+      .on('mouseleave', hideTip);
+
+    g.selectAll('text.rowlabel').data(rowsData).enter().append('text').attr('class','rowlabel bar-label')
+      .attr('x', -8).attr('text-anchor','end')
+      .attr('y', function(d){ return y(d.indikator) + y.bandwidth()/2 + 4; })
+      .text(function(d){ return d.indikator; });
+  }
+
+  var tipEl;
+  function ensureTip(){
+    if (tipEl) return tipEl;
+    tipEl = document.createElement('div');
+    tipEl.className = 'tooltip';
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+  function showTip(ev, text){
+    var t = ensureTip();
+    t.textContent = text;
+    t.style.left = (ev.pageX + 12) + 'px';
+    t.style.top = (ev.pageY - 10) + 'px';
+    t.style.opacity = 1;
+  }
+  function hideTip(){ if (tipEl) tipEl.style.opacity = 0; }
+
+  // ====== table rendering ======
+  var sortState = { field: 'rank', dir: 'asc' };
+  var latestSkor = [];
+
+  function renderFilters(skor){
+    var jenjangSel = document.getElementById('tabel-jenjang');
+    var kabkotaSel = document.getElementById('tabel-kabkota');
+    var jVals = Array.from(new Set(skor.map(function(r){ return r.jenjang; }))).sort();
+    var kVals = Array.from(new Set(skor.map(function(r){ return r.kabkota; }))).sort();
+    var jCur = jenjangSel.value, kCur = kabkotaSel.value;
+    jenjangSel.replaceChildren.apply(jenjangSel, [new Option('Semua Jenjang','')].concat(jVals.map(function(v){ return new Option(v, v); })));
+    kabkotaSel.replaceChildren.apply(kabkotaSel, [new Option('Semua Kabupaten/Kota','')].concat(kVals.map(function(v){ return new Option(v, v); })));
+    jenjangSel.value = jVals.indexOf(jCur) >= 0 ? jCur : '';
+    kabkotaSel.value = kVals.indexOf(kCur) >= 0 ? kCur : '';
+  }
+
+  function renderTable(){
+    var rows = latestSkor.slice();
+    var jenjangSel = document.getElementById('tabel-jenjang');
+    var kabkotaSel = document.getElementById('tabel-kabkota');
+    var q = (document.getElementById('tabel-cari').value || '').trim().toLowerCase();
+    if (jenjangSel.value) rows = rows.filter(function(r){ return r.jenjang === jenjangSel.value; });
+    if (kabkotaSel.value) rows = rows.filter(function(r){ return r.kabkota === kabkotaSel.value; });
+    if (q) rows = rows.filter(function(r){ return (r.sekolah + ' ' + r.npsn).toLowerCase().indexOf(q) >= 0; });
+
+    var f = sortState.field, dir = sortState.dir === 'asc' ? 1 : -1;
+    rows.sort(function(a,b){
+      var av = a[f], bv = b[f];
+      if (typeof av === 'string') return av.localeCompare(bv) * dir;
+      return (av - bv) * dir;
+    });
+
+    var tbody = document.getElementById('tabel-body');
+    tbody.replaceChildren();
+    rows.forEach(function(r){
+      var tr = document.createElement('tr');
+      function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
+      td(r.rank, 'num'); td(r.sekolah); td(r.jenjang); td(r.kabkota);
+      td(fmtRupiah(r.dana), 'num'); td(r.admin_score, 'num'); td(r.serapan_score, 'num');
+      td(r.bimtek_score, 'num'); td(r.implementasi_score, 'num'); td(r.skor_total, 'num');
+      var tdKat = document.createElement('td');
+      var pill = document.createElement('span');
+      pill.className = 'tier-pill ' + tierClass(r.kategori);
+      pill.textContent = r.kategori;
+      tdKat.appendChild(pill);
+      tr.appendChild(tdKat);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderKendala(skor_raw_rows){
+    var summary = computeKendalaSummary(skor_raw_rows);
+    var sBody = document.getElementById('kendala-summary-body');
+    sBody.replaceChildren();
+    summary.forEach(function(r){
+      var tr = document.createElement('tr');
+      function td(text, cls, wrap){ var el = document.createElement('td'); if (cls) el.className = cls; if (wrap) el.classList.add('wrap'); el.textContent = text; tr.appendChild(el); }
+      td(r.jenis, null, true); td(r.jumlah, 'num'); td(r.persen + '%', 'num');
+      sBody.appendChild(tr);
+    });
+
+    var perSekolah = computeKendalaSekolah(skor_raw_rows).filter(function(r){ return r.jumlah_kendala >= 4; }).slice(0, 8);
+    var kBody = document.getElementById('kendala-sekolah-body');
+    kBody.replaceChildren();
+    perSekolah.forEach(function(r){
+      var tr = document.createElement('tr');
+      function td(text, cls, wrap){ var el = document.createElement('td'); if (cls) el.className = cls; if (wrap) el.classList.add('wrap'); el.textContent = text; tr.appendChild(el); }
+      td(r.sekolah); td(r.kabkota); td(r.jumlah_kendala, 'num'); td(r.daftar_kendala, null, true);
+      kBody.appendChild(tr);
+    });
+  }
+
+  function setText(id, text){ document.getElementById(id).textContent = text; }
+
+  function renderAll(rawRows){
+    window.__lastRawRows = rawRows;
+    var skor = computeSkor(rawRows);
+    latestSkor = skor;
+
+    setText('kpi-jumlah', skor.length);
+    setText('kpi-dana', fmtRupiah(d3.sum(rawRows, function(r){ return r.dana; })));
+    var avgSkor = skor.length ? Math.round(d3.mean(skor, function(r){ return r.skor_total; }) * 10) / 10 : 0;
+    setText('kpi-skor', avgSkor);
+    var avgSerapan = skor.length ? Math.round(d3.mean(skor, function(r){ return r.serapan_score; }) * 10) / 10 : 0;
+    setText('kpi-serapan', avgSerapan + '%');
+
+    var headlineEl = document.getElementById('headline');
+    if (skor.length){
+      headlineEl.innerHTML = '';
+      headlineEl.append('Skor kinerja tertinggi saat ini dicapai oleh ');
+      var b1 = document.createElement('b'); b1.textContent = skor[0].sekolah; headlineEl.appendChild(b1);
+      headlineEl.append(' dengan skor ');
+      var b2 = document.createElement('b'); b2.textContent = skor[0].skor_total; headlineEl.appendChild(b2);
+      headlineEl.append(', dari ');
+      var b3 = document.createElement('b'); b3.textContent = skor.length; headlineEl.appendChild(b3);
+      headlineEl.append(' satuan pendidikan yang telah mengisi monev.');
+    }
+
+    drawHBar(document.getElementById('chart-peringkat'), skor, {
+      labelKey: 'sekolah', valueKey: 'skor_total',
+      colorFn: function(r){ return tierColorVar(r.kategori); },
+      ariaLabel: 'Peringkat skor kinerja per satuan pendidikan',
+      onHover: function(ev, r){ showTip(ev, r.sekolah + ' (' + r.kabkota + ') — skor ' + r.skor_total + ' · ' + r.kategori); },
+      onLeave: hideTip
+    });
+
+    drawHBar(document.getElementById('chart-wilayah'), computeSkorPerKabkota(skor), {
+      labelKey: 'kabkota', valueKey: 'avg_skor',
+      colorFn: function(){ return 'var(--ok)'; },
+      suffix: function(d){ return '  (n=' + d.jumlah + ')'; },
+      ariaLabel: 'Rata-rata skor per kabupaten/kota',
+      onHover: function(ev, r){ showTip(ev, r.kabkota + ' — rata-rata skor ' + r.avg_skor + ', ' + r.jumlah + ' satuan pendidikan'); },
+      onLeave: hideTip
+    });
+
+    drawStacked(document.getElementById('chart-kepatuhan'), computeKepatuhan(rawRows));
+    drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows));
+
+    renderKendala(rawRows);
+    renderFilters(skor);
+    renderTable();
+  }
+
+  // ====== CSV loading ======
+  function parseRow(row){
+    return {
+      sekolah: row.sekolah || '', npsn: row.npsn || '', jenjang: row.jenjang || '', kabkota: row.kabkota || '',
+      dana: num(row.dana),
+      kelengkapan_bukti: row.kelengkapan_bukti || '', pencatatan_bku: row.pencatatan_bku || '',
+      serapan: row.serapan || '', kesiapan_laporan: row.kesiapan_laporan || '',
+      ikut_spmi: row.ikut_spmi || '', ikut_litnum: row.ikut_litnum || '', ikut_digital: row.ikut_digital || '',
+      manfaat_bimtek: row.manfaat_bimtek || '', rtl_pct: row.rtl_pct || '',
+      guru_terap: num(row.guru_terap), guru_total: num(row.guru_total),
+      manfaat_rapor: row.manfaat_rapor || '', publikasi: row.publikasi || '',
+      lit_plan: num(row.lit_plan), digital_plan: num(row.digital_plan), spmi_plan: num(row.spmi_plan),
+      lit_real: num(row.lit_real), digital_real: num(row.digital_real), spmi_real: num(row.spmi_real)
+    };
+  }
+
+  function loadData(){
+    setText('last-updated', 'Memuat data…');
+    Papa.parse(CSV_URL + (CSV_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now(), {
+      download: true, header: true, skipEmptyLines: true,
+      complete: function(res){
+        var rows = (res.data || []).filter(function(r){ return r.sekolah; }).map(parseRow);
+        renderAll(rows);
+        setText('last-updated', 'Data dimuat pukul ' + new Date().toLocaleTimeString('id-ID') + ' · ' + rows.length + ' satuan pendidikan');
+      },
+      error: function(err){
+        setText('last-updated', 'Gagal memuat data: ' + (err && err.message ? err.message : 'periksa koneksi.'));
+      }
+    });
+  }
+
+  document.getElementById('refresh-btn').addEventListener('click', loadData);
+  document.getElementById('tabel-cari').addEventListener('input', renderTable);
+  document.getElementById('tabel-jenjang').addEventListener('change', renderTable);
+  document.getElementById('tabel-kabkota').addEventListener('change', renderTable);
+  Array.prototype.forEach.call(document.querySelectorAll('table.rank-table th[data-sort]'), function(th){
+    th.addEventListener('click', function(){
+      var f = th.getAttribute('data-sort');
+      if (sortState.field === f) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      else { sortState.field = f; sortState.dir = (f === 'rank' || f === 'sekolah' || f === 'jenjang' || f === 'kabkota' || f === 'kategori') ? 'asc' : 'desc'; }
+      renderTable();
+    });
+  });
+  var resizeTimer;
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){ if (window.__lastRawRows && window.__lastRawRows.length) renderAll(window.__lastRawRows); }, 150);
+  });
+
+  loadData();
+  setInterval(loadData, AUTO_REFRESH_MS);
+})();
+</script>
+</body>
+</html>

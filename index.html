@@ -188,6 +188,7 @@
         <thead>
           <tr>
             <th class="num" data-sort="rank">Peringkat</th>
+            <th data-sort="npsn">NPSN</th>
             <th data-sort="sekolah">Satuan Pendidikan</th>
             <th data-sort="jenjang">Jenjang</th>
             <th data-sort="kabkota">Kabupaten/Kota</th>
@@ -627,7 +628,7 @@
     rows.forEach(function(r){
       var tr = document.createElement('tr');
       function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.rank, 'num'); td(r.sekolah); td(r.jenjang); td(r.kabkota);
+      td(r.rank, 'num'); td(r.npsn); td(r.sekolah); td(r.jenjang); td(r.kabkota);
       td(fmtRupiah(r.dana), 'num'); td(r.admin_score, 'num'); td(r.serapan_score, 'num');
       td(r.bimtek_score, 'num'); td(r.implementasi_score, 'num'); td(r.skor_total, 'num');
       var tdKat = document.createElement('td');

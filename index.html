@@ -122,14 +122,14 @@
     </div>
   </div>
 
-  <section class="panel" id="peringkat">
-    <h2>Peringkat Skor Kinerja per Satuan Pendidikan</h2>
-    <p class="panel-sub">Skor komposit 0–100 dari lima dimensi monev. Diurutkan dari skor tertinggi.</p>
-    <div class="chart-box" id="chart-peringkat"></div>
-    <div class="legend">
-      <span><span class="dot" style="background:var(--ok)"></span>Sangat Baik / Baik (≥ 80)</span>
-      <span><span class="dot" style="background:var(--warn)"></span>Cukup (65–79)</span>
-      <span><span class="dot" style="background:var(--bad)"></span>Perlu Perbaikan (&lt; 65)</span>
+  <section class="panel" id="rtl">
+    <h2>Rekap Penyelesaian RTL</h2>
+    <p class="panel-sub">Rencana Tindak Lanjut (RTL) hasil bimtek yang sudah dimiliki satuan pendidikan, per jenis.</p>
+    <div class="table-scroll">
+      <table class="rank-table">
+        <thead><tr><th>Jenis RTL</th><th class="num">Sudah Selesai</th><th class="num">Belum Selesai</th><th class="num">% Selesai</th></tr></thead>
+        <tbody id="rtl-rekap-body"></tbody>
+      </table>
     </div>
   </section>
 
@@ -631,6 +631,17 @@
     });
   }
 
+  function renderRtlRekap(rawRows){
+    var body = document.getElementById('rtl-rekap-body');
+    body.replaceChildren();
+    computeRtlRekap(rawRows).forEach(function(r){
+      var tr = document.createElement('tr');
+      function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
+      td(r.jenis); td(r.selesai, 'num'); td(r.belum, 'num'); td(r.persen + '%', 'num');
+      body.appendChild(tr);
+    });
+  }
+
   function renderKendala(skor_raw_rows){
     var summary = computeKendalaSummary(skor_raw_rows);
     var sBody = document.getElementById('kendala-summary-body');
@@ -679,13 +690,7 @@
       headlineEl.append(' satuan pendidikan yang telah mengisi monev.');
     }
 
-    drawHBar(document.getElementById('chart-peringkat'), skor, {
-      labelKey: 'sekolah', valueKey: 'skor_total',
-      colorFn: function(r){ return tierColorVar(r.kategori); },
-      ariaLabel: 'Peringkat skor kinerja per satuan pendidikan',
-      onHover: function(ev, r){ showTip(ev, r.sekolah + ' (' + r.kabkota + ') — skor ' + r.skor_total + ' · ' + r.kategori); },
-      onLeave: hideTip
-    });
+    renderRtlRekap(rawRows);
 
     drawHBar(document.getElementById('chart-wilayah'), computeSkorPerKabkota(skor), {
       labelKey: 'kabkota', valueKey: 'avg_skor',
@@ -716,8 +721,29 @@
       guru_terap: num(row.guru_terap), guru_total: num(row.guru_total),
       manfaat_rapor: row.manfaat_rapor || '', publikasi: row.publikasi || '',
       lit_plan: num(row.lit_plan), digital_plan: num(row.digital_plan), spmi_plan: num(row.spmi_plan),
-      lit_real: num(row.lit_real), digital_real: num(row.digital_real), spmi_real: num(row.spmi_real)
+      lit_real: num(row.lit_real), digital_real: num(row.digital_real), spmi_real: num(row.spmi_real),
+      produk_bimtek: row.produk_bimtek || ''
     };
+  }
+
+  function dedupByNpsn(rows){
+    // Jika ada satuan pendidikan (NPSN) yang mengisi lebih dari sekali, pakai jawaban terakhir.
+    var byNpsn = new Map();
+    rows.forEach(function(r){ byNpsn.set(r.npsn, r); });
+    return Array.from(byNpsn.values());
+  }
+
+  function computeRtlRekap(rows){
+    var total = rows.length || 1;
+    var defs = [
+      { jenis: 'Tata Kelola / SPMI', match: 'RTL penguatan SPMI' },
+      { jenis: 'Literasi-Numerasi', match: 'RTL implementasi literasi-numerasi di kelas' },
+      { jenis: 'Digitalisasi Pembelajaran', match: 'RTL implementasi digitalisasi pembelajaran' }
+    ];
+    return defs.map(function(d){
+      var selesai = rows.filter(function(r){ return (r.produk_bimtek || '').indexOf(d.match) >= 0; }).length;
+      return { jenis: d.jenis, selesai: selesai, belum: total - selesai, persen: Math.round(selesai / total * 100) };
+    });
   }
 
   function loadData(){
@@ -725,7 +751,7 @@
     Papa.parse(CSV_URL + (CSV_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now(), {
       download: true, header: true, skipEmptyLines: true,
       complete: function(res){
-        var rows = (res.data || []).filter(function(r){ return r.sekolah; }).map(parseRow);
+        var rows = dedupByNpsn((res.data || []).filter(function(r){ return r.sekolah; }).map(parseRow));
         renderAll(rows);
         setText('last-updated', 'Data dimuat pukul ' + new Date().toLocaleTimeString('id-ID') + ' · ' + rows.length + ' satuan pendidikan');
       },

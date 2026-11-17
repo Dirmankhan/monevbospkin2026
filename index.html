@@ -71,6 +71,8 @@
   table.rank-table th{ font-size:.72rem; color:var(--fg-muted); font-weight:600; cursor:pointer; user-select:none; text-transform:uppercase; letter-spacing:.03em; }
   table.rank-table th.num, table.rank-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
   table.rank-table tbody tr:hover{ background:var(--accent-soft); }
+  table.rank-table.full-table{ table-layout:fixed; min-width:0; }
+  table.rank-table.full-table th, table.rank-table.full-table td{ white-space:normal; overflow-wrap:break-word; word-break:break-word; }
   .tier-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.75rem; font-weight:600; }
   .tier-sb, .tier-b{ background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); }
   .tier-c{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
@@ -184,10 +186,14 @@
       <select id="tabel-kabkota" aria-label="Filter kabupaten/kota"></select>
     </div>
     <div class="table-scroll">
-      <table class="rank-table">
+      <table class="rank-table full-table">
+        <colgroup>
+          <col style="width:9%"><col style="width:20%"><col style="width:6%"><col style="width:13%">
+          <col style="width:10%"><col style="width:6%"><col style="width:6%"><col style="width:6%">
+          <col style="width:7%"><col style="width:7%"><col style="width:10%">
+        </colgroup>
         <thead>
           <tr>
-            <th class="num" data-sort="rank">Peringkat</th>
             <th data-sort="npsn">NPSN</th>
             <th data-sort="sekolah">Satuan Pendidikan</th>
             <th data-sort="jenjang">Jenjang</th>
@@ -628,7 +634,7 @@
     rows.forEach(function(r){
       var tr = document.createElement('tr');
       function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.rank, 'num'); td(r.npsn); td(r.sekolah); td(r.jenjang); td(r.kabkota);
+      td(r.npsn); td(r.sekolah); td(r.jenjang); td(r.kabkota);
       td(fmtRupiah(r.dana), 'num'); td(r.admin_score, 'num'); td(r.serapan_score, 'num');
       td(r.bimtek_score, 'num'); td(r.implementasi_score, 'num'); td(r.skor_total, 'num');
       var tdKat = document.createElement('td');

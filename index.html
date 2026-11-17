@@ -230,6 +230,10 @@
   var CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTqPmWNhSvVLif9o3bJjY9wXd_7f9BOZlHgEav-aRftmvKZcCEdrkK6Zy1XnUDEnDp9pcVBK8OE82Oz/pub?gid=888699082&single=true&output=csv";
   var AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
+  // Tinggi target yang sama untuk grafik "Rata-rata Skor per Kabupaten/Kota"
+  // dan "Kepatuhan Administrasi Keuangan" supaya kedua panel proporsional.
+  var CHART_PAIR_HEIGHT = 220;
+
   // ====== helpers: category -> score (sama dengan versi Claude Artifact) ======
   function scoreKelengkapan(v){
     if (!v) return 0;
@@ -412,8 +416,11 @@
     var valueFmt = opts.valueFmt || function(v){ return String(v); };
     var suffix = opts.suffix || function(){ return ''; };
     var width = el.clientWidth || 600;
-    var rowH = opts.rowH || 26;
     var margin = { top: 6, right: 56, bottom: 6, left: 10 };
+    var minRowH = opts.minRowH || 20;
+    var rowH = opts.targetHeight
+      ? Math.max(minRowH, (opts.targetHeight - margin.top - margin.bottom) / data.length)
+      : (opts.rowH || 26);
     var labelW = 0;
     var tmp = d3.select(el).append('svg').style('position','absolute').style('visibility','hidden');
     data.forEach(function(d){
@@ -507,13 +514,15 @@
     });
   }
 
-  function drawStacked(el, data){
+  function drawStacked(el, data, targetHeight){
     var indikators = Array.from(new Set(data.map(function(d){ return d.indikator; })));
     var cats = ['Baik','Cukup','Kurang'];
     var colorOf = { Baik: 'var(--ok)', Cukup: 'var(--warn)', Kurang: 'var(--bad)' };
     var width = el.clientWidth || 600;
-    var rowH = 46;
     var margin = { top: 8, right: 10, bottom: 8, left: 10 };
+    var rowH = targetHeight
+      ? Math.max(40, (targetHeight - margin.top - margin.bottom) / indikators.length)
+      : 46;
     var labelW = 0;
     var tmp = d3.select(el).append('svg').style('position','absolute').style('visibility','hidden');
     indikators.forEach(function(lab){
@@ -697,11 +706,12 @@
       colorFn: function(){ return 'var(--ok)'; },
       suffix: function(d){ return '  (n=' + d.jumlah + ')'; },
       ariaLabel: 'Rata-rata skor per kabupaten/kota',
+      targetHeight: CHART_PAIR_HEIGHT,
       onHover: function(ev, r){ showTip(ev, r.kabkota + ' — rata-rata skor ' + r.avg_skor + ', ' + r.jumlah + ' satuan pendidikan'); },
       onLeave: hideTip
     });
 
-    drawStacked(document.getElementById('chart-kepatuhan'), computeKepatuhan(rawRows));
+    drawStacked(document.getElementById('chart-kepatuhan'), computeKepatuhan(rawRows), CHART_PAIR_HEIGHT);
     drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows));
 
     renderKendala(rawRows);

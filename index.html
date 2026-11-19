@@ -155,6 +155,14 @@
       </table>
     </div>
 
+    <p class="panel-sub" style="margin-top:18px; margin-bottom:8px;">Jumlah satuan pendidikan yang menyelesaikan (mengikuti) bimtek, per jenis.</p>
+    <div class="table-scroll">
+      <table class="rank-table">
+        <thead><tr><th>Jenis Bimtek</th><th class="num">Jumlah SP</th><th class="num">% dari Total</th></tr></thead>
+        <tbody id="bimtek-per-jenis-body"></tbody>
+      </table>
+    </div>
+
     <p class="panel-sub" style="margin-top:18px; margin-bottom:0;">Satuan pendidikan yang mengikuti ketiga bimtek (SPMI, Literasi-Numerasi, Digitalisasi Pembelajaran) sekaligus: <b id="bimtek-lengkap-text">—</b></p>
   </section>
 
@@ -739,6 +747,15 @@
       body.appendChild(tr);
     });
 
+    var jenisBody = document.getElementById('bimtek-per-jenis-body');
+    jenisBody.replaceChildren();
+    computeBimtekPerJenis(rawRows).forEach(function(r){
+      var tr = document.createElement('tr');
+      function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
+      td(r.jenis); td(r.jumlah, 'num'); td(r.persen + '%', 'num');
+      jenisBody.appendChild(tr);
+    });
+
     var b = computeBimtekLengkap(rawRows);
     setText('bimtek-lengkap-text', b.jumlah + ' dari ' + b.total + ' satuan pendidikan (' + b.persen + '%)');
   }
@@ -877,6 +894,19 @@
     var total = rows.length || 1;
     var jumlah = rows.filter(function(r){ return r.ikut_spmi === 'Ikut' && r.ikut_litnum === 'Ikut' && r.ikut_digital === 'Ikut'; }).length;
     return { jumlah: jumlah, total: total, persen: Math.round(jumlah / total * 100) };
+  }
+
+  function computeBimtekPerJenis(rows){
+    var total = rows.length || 1;
+    var defs = [
+      { jenis: 'Bimtek SPMI', key: 'ikut_spmi' },
+      { jenis: 'Bimtek Literasi-Numerasi', key: 'ikut_litnum' },
+      { jenis: 'Bimtek Digitalisasi Pembelajaran', key: 'ikut_digital' }
+    ];
+    return defs.map(function(d){
+      var jumlah = rows.filter(function(r){ return r[d.key] === 'Ikut'; }).length;
+      return { jenis: d.jenis, jumlah: jumlah, persen: Math.round(jumlah / total * 100) };
+    });
   }
 
   function loadData(){

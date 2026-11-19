@@ -465,7 +465,8 @@
 
     d3.select(el).selectAll('svg').remove();
     var svg = d3.select(el).append('svg')
-      .attr('width', '100%').attr('viewBox', '0 0 ' + width + ' ' + height)
+      .attr('width', '100%').attr('height', height).attr('viewBox', '0 0 ' + width + ' ' + height)
+      .style('display', 'block')
       .attr('role','img').attr('aria-label', opts.ariaLabel || 'Diagram batang');
 
     var maxVal = d3.max(data, function(d){ return d[valueKey]; }) || 1;
@@ -567,7 +568,8 @@
 
     d3.select(el).selectAll('svg').remove();
     var svg = d3.select(el).append('svg')
-      .attr('width','100%').attr('viewBox','0 0 '+width+' '+height)
+      .attr('width','100%').attr('height', height).attr('viewBox','0 0 '+width+' '+height)
+      .style('display', 'block')
       .attr('role','img').attr('aria-label','Kepatuhan administrasi per indikator');
 
     var y = d3.scaleBand().domain(indikators).range([margin.top, margin.top + indikators.length*rowH]).padding(0.3);

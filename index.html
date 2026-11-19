@@ -80,6 +80,10 @@
   .rtl-meter-track{ flex:1; height:8px; border-radius:999px; background:var(--border); overflow:hidden; }
   .rtl-meter-fill{ height:100%; border-radius:999px; }
   .rtl-meter-pct{ font-variant-numeric:tabular-nums; font-size:.82rem; font-weight:600; min-width:34px; text-align:right; }
+  .rtl-bimtek-stats{ display:flex; gap:24px; flex-wrap:wrap; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+  .rtl-bimtek-stats .stat{ display:flex; flex-direction:column; gap:2px; min-width:120px; }
+  .rtl-bimtek-stats .stat .n{ font-family:var(--font-display); font-weight:600; font-size:1.05rem; font-variant-numeric:tabular-nums; }
+  .rtl-bimtek-stats .stat .l{ font-size:.75rem; color:var(--fg-muted); }
   table.rank-table.full-table{ table-layout:fixed; min-width:0; }
   table.rank-table.full-table th, table.rank-table.full-table td{ white-space:normal; overflow-wrap:break-word; word-break:break-word; }
   .tier-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.75rem; font-weight:600; }
@@ -158,6 +162,7 @@
         <tbody id="rtl-rekap-body"></tbody>
       </table>
     </div>
+    <div class="rtl-bimtek-stats" id="rtl-bimtek-stats"></div>
   </section>
 
   <section class="panel" id="capaian">
@@ -764,6 +769,18 @@
     });
   }
 
+  function renderBimtekPeserta(rawRows){
+    var box = document.getElementById('rtl-bimtek-stats');
+    box.replaceChildren();
+    computeBimtekPeserta(rawRows).forEach(function(s){
+      var stat = document.createElement('div'); stat.className = 'stat';
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = s.n + ' sekolah';
+      var l = document.createElement('div'); l.className = 'l'; l.textContent = 'Mengikuti bimtek ' + s.jenis;
+      stat.appendChild(n); stat.appendChild(l);
+      box.appendChild(stat);
+    });
+  }
+
   function computeCapaianDimensi(skor){
     var n = skor.length || 1;
     function avg(key){ return Math.round(skor.reduce(function(s,r){ return s + r[key]; }, 0) / n * 10) / 10; }
@@ -828,6 +845,7 @@
     }
 
     renderRtlRekap(rawRows);
+    renderBimtekPeserta(rawRows);
     renderCapaianDimensi(skor);
 
     drawHBar(document.getElementById('chart-wilayah'), computeSkorPerKabkota(skor), {
@@ -881,16 +899,26 @@
     return Array.from(byNpsn.values());
   }
 
+  // Urutan dan label jenis RTL dipakai bersama oleh rekap penyelesaian RTL
+  // dan rekap jumlah sekolah yang mengikuti bimtek (sesuai isian Google Form).
+  var RTL_DEFS = [
+    { jenis: 'Tata Kelola / SPMI', match: 'RTL penguatan SPMI', ikutField: 'ikut_spmi' },
+    { jenis: 'Literasi-Numerasi', match: 'RTL implementasi literasi-numerasi di kelas', ikutField: 'ikut_litnum' },
+    { jenis: 'Digitalisasi Pembelajaran', match: 'RTL implementasi digitalisasi pembelajaran', ikutField: 'ikut_digital' }
+  ];
+
   function computeRtlRekap(rows){
     var total = rows.length || 1;
-    var defs = [
-      { jenis: 'Tata Kelola / SPMI', match: 'RTL penguatan SPMI' },
-      { jenis: 'Literasi-Numerasi', match: 'RTL implementasi literasi-numerasi di kelas' },
-      { jenis: 'Digitalisasi Pembelajaran', match: 'RTL implementasi digitalisasi pembelajaran' }
-    ];
-    return defs.map(function(d){
+    return RTL_DEFS.map(function(d){
       var selesai = rows.filter(function(r){ return (r.produk_bimtek || '').indexOf(d.match) >= 0; }).length;
       return { jenis: d.jenis, selesai: selesai, belum: total - selesai, persen: Math.round(selesai / total * 100) };
+    });
+  }
+
+  function computeBimtekPeserta(rows){
+    return RTL_DEFS.map(function(d){
+      var n = rows.filter(function(r){ return r[d.ikutField] === 'Ikut'; }).length;
+      return { jenis: d.jenis, n: n };
     });
   }
 

@@ -513,16 +513,17 @@
       .text(function(d){ return d[labelKey]; });
   }
 
-  function drawGroupedBar(el, data){
+  function drawGroupedBar(el, data, targetHeight){
     var width = el.clientWidth || 600;
-    var height = 260;
+    var height = targetHeight || 260;
     var margin = { top: 16, right: 10, bottom: 56, left: 64 };
     var plotW = width - margin.left - margin.right;
     var plotH = height - margin.top - margin.bottom;
 
     d3.select(el).selectAll('svg').remove();
     var svg = d3.select(el).append('svg')
-      .attr('width','100%').attr('viewBox','0 0 ' + width + ' ' + height)
+      .attr('width','100%').attr('height', height).attr('viewBox','0 0 ' + width + ' ' + height)
+      .style('display', 'block')
       .attr('role','img').attr('aria-label','Rencana versus realisasi anggaran per komponen');
 
     var x0 = d3.scaleBand().domain(data.map(function(d){ return d.komponen; })).range([0, plotW]).padding(0.25);
@@ -777,10 +778,11 @@
       colorFn: function(){ return 'var(--ok)'; },
       suffix: function(d){ return '  (n=' + d.jumlah + ')'; },
       ariaLabel: 'Rata-rata skor per jenjang',
+      targetHeight: CHART_PAIR_HEIGHT,
       onHover: function(ev, r){ showTip(ev, r.jenjang + ' — rata-rata skor ' + r.avg_skor + ', ' + r.jumlah + ' satuan pendidikan'); },
       onLeave: hideTip
     });
-    drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows));
+    drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows), CHART_PAIR_HEIGHT);
 
     renderKendala(rawRows);
     renderTable();

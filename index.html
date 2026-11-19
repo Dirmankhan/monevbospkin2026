@@ -76,6 +76,10 @@
   table.rank-table th.num, table.rank-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
   table.rank-table tbody tr:hover{ background:var(--accent-soft); }
   table.rank-table tr.row-total{ font-weight:600; border-top:1px solid var(--border); }
+  .rtl-meter{ display:flex; align-items:center; gap:10px; min-width:160px; }
+  .rtl-meter-track{ flex:1; height:8px; border-radius:999px; background:var(--border); overflow:hidden; }
+  .rtl-meter-fill{ height:100%; border-radius:999px; }
+  .rtl-meter-pct{ font-variant-numeric:tabular-nums; font-size:.82rem; font-weight:600; min-width:34px; text-align:right; }
   table.rank-table.full-table{ table-layout:fixed; min-width:0; }
   table.rank-table.full-table th, table.rank-table.full-table td{ white-space:normal; overflow-wrap:break-word; word-break:break-word; }
   .tier-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.75rem; font-weight:600; }
@@ -150,7 +154,7 @@
     <p class="panel-sub">Rencana Tindak Lanjut (RTL) hasil bimtek yang sudah dimiliki satuan pendidikan, per jenis.</p>
     <div class="table-scroll">
       <table class="rank-table">
-        <thead><tr><th>Jenis RTL</th><th class="num">Sudah Selesai</th><th class="num">Belum Selesai</th><th class="num">% Selesai</th></tr></thead>
+        <thead><tr><th>Jenis RTL</th><th>Progres</th><th class="num">Sudah Selesai</th><th class="num">Belum Selesai</th></tr></thead>
         <tbody id="rtl-rekap-body"></tbody>
       </table>
     </div>
@@ -727,13 +731,35 @@
     });
   }
 
+  function rtlMeterColor(persen){
+    if (persen >= 75) return 'var(--ok)';
+    if (persen >= 40) return 'var(--warn)';
+    return 'var(--bad)';
+  }
+
   function renderRtlRekap(rawRows){
     var body = document.getElementById('rtl-rekap-body');
     body.replaceChildren();
     computeRtlRekap(rawRows).forEach(function(r){
       var tr = document.createElement('tr');
       function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.jenis); td(r.selesai, 'num'); td(r.belum, 'num'); td(r.persen + '%', 'num');
+      var jenisTd = document.createElement('td'); jenisTd.textContent = r.jenis; tr.appendChild(jenisTd);
+
+      var meterTd = document.createElement('td');
+      var meter = document.createElement('div'); meter.className = 'rtl-meter';
+      var track = document.createElement('div'); track.className = 'rtl-meter-track';
+      var fill = document.createElement('div'); fill.className = 'rtl-meter-fill';
+      fill.style.width = Math.max(0, Math.min(100, r.persen)) + '%';
+      fill.style.background = rtlMeterColor(r.persen);
+      track.appendChild(fill);
+      var pct = document.createElement('span'); pct.className = 'rtl-meter-pct'; pct.textContent = r.persen + '%';
+      meter.appendChild(track); meter.appendChild(pct);
+      meter.setAttribute('role', 'img');
+      meter.setAttribute('aria-label', r.jenis + ': ' + r.persen + '% selesai, ' + r.selesai + ' dari ' + (r.selesai + r.belum) + ' satuan pendidikan');
+      meterTd.appendChild(meter);
+      tr.appendChild(meterTd);
+
+      td(r.selesai, 'num'); td(r.belum, 'num');
       body.appendChild(tr);
     });
   }

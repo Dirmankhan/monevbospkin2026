@@ -70,7 +70,6 @@
   .table-controls input[type=search]{ flex:1; }
   .table-scroll{ overflow-x:auto; }
   table.rank-table{ width:100%; border-collapse:collapse; font-size:.88rem; min-width:760px; }
-  table.rank-table.kendala-sekolah{ min-width:620px; }
   table.rank-table th, table.rank-table td{ text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
   table.rank-table td.wrap, table.rank-table th.wrap{ white-space:normal; }
   table.rank-table th{ font-size:.72rem; color:var(--fg-muted); font-weight:600; cursor:pointer; user-select:none; text-transform:uppercase; letter-spacing:.03em; }
@@ -83,6 +82,15 @@
   .tier-sb, .tier-b{ background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--ok); }
   .tier-c{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
   .tier-p{ background:color-mix(in srgb, var(--bad) 18%, transparent); color:var(--bad); }
+  table.rank-table td details{ font-size:.82rem; }
+  table.rank-table td details summary{ cursor:pointer; color:var(--accent); font-weight:600; white-space:nowrap; list-style:none; }
+  table.rank-table td details summary::-webkit-details-marker{ display:none; }
+  table.rank-table td details summary::before{ content:'▸ '; }
+  table.rank-table td details[open] summary::before{ content:'▾ '; }
+  table.rank-table td details .detail-list{ margin:8px 0 0; display:grid; grid-template-columns:auto auto; gap:2px 16px; white-space:nowrap; }
+  table.rank-table td details .detail-list dt{ color:var(--fg-muted); }
+  table.rank-table td details .detail-list dd{ margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  table.rank-table td details .detail-list dt.row-total, table.rank-table td details .detail-list dd.row-total{ color:var(--fg); font-weight:600; border-top:1px solid var(--border); padding-top:2px; }
   details.method{ font-size:.9rem; color:var(--fg-muted); background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 22px; }
   details.method summary{ cursor:pointer; color:var(--fg); font-weight:600; }
   details.method ul{ margin:10px 0; padding-left:1.2em; }
@@ -200,41 +208,28 @@
         <tbody id="kendala-summary-body"></tbody>
       </table>
     </div>
-    <p class="panel-sub" style="margin-top:18px; margin-bottom:8px;">Satuan pendidikan dengan kendala terbanyak sekaligus — perlu perhatian khusus.</p>
-    <div class="table-scroll">
-      <table class="rank-table kendala-sekolah">
-        <thead><tr><th>Satuan Pendidikan</th><th>Kabupaten/Kota</th><th class="num">Jumlah Kendala</th><th class="wrap">Daftar Kendala</th></tr></thead>
-        <tbody id="kendala-sekolah-body"></tbody>
-      </table>
-    </div>
   </section>
 
   <section class="panel" id="tabel">
-    <h2>Tabel Peringkat Lengkap</h2>
-    <p class="panel-sub">Klik judul kolom untuk mengurutkan. Gunakan pencarian untuk menyaring satuan pendidikan, atau filter kabupaten/jenjang di bagian atas halaman.</p>
+    <h2>Peringkat Satuan Pendidikan</h2>
+    <p class="panel-sub">Diurutkan dari skor total tertinggi. Klik judul kolom untuk mengurutkan ulang, klik "Detail" pada baris untuk melihat capaian tiap dimensi. Gunakan pencarian untuk menyaring satuan pendidikan, atau filter kabupaten/jenjang di bagian atas halaman.</p>
     <div class="table-controls">
       <input type="search" id="tabel-cari" placeholder="Cari nama satuan pendidikan atau NPSN...">
     </div>
     <div class="table-scroll">
       <table class="rank-table full-table">
         <colgroup>
-          <col style="width:9%"><col style="width:20%"><col style="width:6%"><col style="width:13%">
-          <col style="width:10%"><col style="width:6%"><col style="width:6%"><col style="width:6%">
-          <col style="width:7%"><col style="width:7%"><col style="width:10%">
+          <col style="width:18%"><col style="width:10%"><col style="width:30%">
+          <col style="width:8%"><col style="width:14%"><col style="width:20%">
         </colgroup>
         <thead>
           <tr>
+            <th data-sort="kabkota">Kabupaten</th>
             <th data-sort="npsn">NPSN</th>
-            <th data-sort="sekolah">Satuan Pendidikan</th>
+            <th data-sort="sekolah">Nama Satuan Pendidikan</th>
             <th data-sort="jenjang">Jenjang</th>
-            <th data-sort="kabkota">Kabupaten/Kota</th>
-            <th class="num" data-sort="dana">Dana (Rp)</th>
-            <th class="num" data-sort="admin_score">Admin</th>
-            <th class="num" data-sort="serapan_score">Serapan</th>
-            <th class="num" data-sort="bimtek_score">Bimtek</th>
-            <th class="num" data-sort="implementasi_score">Implementasi</th>
-            <th class="num" data-sort="skor_total">Skor Total</th>
             <th data-sort="kategori">Kategori</th>
+            <th>Detail</th>
           </tr>
         </thead>
         <tbody id="tabel-body"></tbody>
@@ -455,14 +450,6 @@
     return out;
   }
 
-  function computeKendalaSekolah(rows){
-    var out = rows.map(function(r){
-      var list = kendalaListOf(r);
-      return { npsn: r.npsn, sekolah: r.sekolah, kabkota: r.kabkota, jumlah_kendala: list.length, daftar_kendala: list.join('; ') };
-    });
-    out.sort(function(a,b){ return b.jumlah_kendala - a.jumlah_kendala; });
-    return out;
-  }
 
   // ====== chart drawing (d3) ======
   function drawHBar(el, data, opts){
@@ -649,7 +636,7 @@
   function hideTip(){ if (tipEl) tipEl.style.opacity = 0; }
 
   // ====== table rendering ======
-  var sortState = { field: 'rank', dir: 'asc' };
+  var sortState = { field: 'skor_total', dir: 'desc' };
   var latestSkor = [];
 
   // Populate the global filter selects from the FULL unfiltered dataset, so
@@ -689,7 +676,8 @@
 
     var f = sortState.field, dir = sortState.dir === 'asc' ? 1 : -1;
     rows.sort(function(a,b){
-      var av = a[f], bv = b[f];
+      var av = f === 'kategori' ? a.skor_total : a[f];
+      var bv = f === 'kategori' ? b.skor_total : b[f];
       if (typeof av === 'string') return av.localeCompare(bv) * dir;
       return (av - bv) * dir;
     });
@@ -699,15 +687,42 @@
     rows.forEach(function(r){
       var tr = document.createElement('tr');
       function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.npsn); td(r.sekolah); td(r.jenjang); td(r.kabkota);
-      td(fmtRupiah(r.dana), 'num'); td(r.admin_score, 'num'); td(r.serapan_score, 'num');
-      td(r.bimtek_score, 'num'); td(r.implementasi_score, 'num'); td(r.skor_total, 'num');
+      td(r.kabkota);
+      td(r.npsn);
+      td(r.sekolah);
+      td(r.jenjang);
+
       var tdKat = document.createElement('td');
       var pill = document.createElement('span');
       pill.className = 'tier-pill ' + tierClass(r.kategori);
       pill.textContent = r.kategori;
       tdKat.appendChild(pill);
       tr.appendChild(tdKat);
+
+      var tdDetail = document.createElement('td');
+      var details = document.createElement('details');
+      var summary = document.createElement('summary');
+      summary.textContent = 'Detail';
+      details.appendChild(summary);
+      var dl = document.createElement('dl');
+      dl.className = 'detail-list';
+      [
+        ['Administrasi Keuangan', r.admin_score],
+        ['Serapan Dana', r.serapan_score],
+        ['Bimtek', r.bimtek_score],
+        ['Implementasi', r.implementasi_score],
+        ['Publikasi Praktik Baik', r.inovasi_score],
+        ['Skor Total', r.skor_total]
+      ].forEach(function(pair){
+        var dt = document.createElement('dt'); dt.textContent = pair[0];
+        var dd = document.createElement('dd'); dd.textContent = pair[1];
+        if (pair[0] === 'Skor Total') { dt.className = 'row-total'; dd.className = 'row-total'; }
+        dl.appendChild(dt); dl.appendChild(dd);
+      });
+      details.appendChild(dl);
+      tdDetail.appendChild(details);
+      tr.appendChild(tdDetail);
+
       tbody.appendChild(tr);
     });
   }
@@ -757,16 +772,6 @@
       function td(text, cls, wrap){ var el = document.createElement('td'); if (cls) el.className = cls; if (wrap) el.classList.add('wrap'); el.textContent = text; tr.appendChild(el); }
       td(r.jenis, null, true); td(r.jumlah, 'num'); td(r.persen + '%', 'num');
       sBody.appendChild(tr);
-    });
-
-    var perSekolah = computeKendalaSekolah(skor_raw_rows).filter(function(r){ return r.jumlah_kendala >= 4; }).slice(0, 8);
-    var kBody = document.getElementById('kendala-sekolah-body');
-    kBody.replaceChildren();
-    perSekolah.forEach(function(r){
-      var tr = document.createElement('tr');
-      function td(text, cls, wrap){ var el = document.createElement('td'); if (cls) el.className = cls; if (wrap) el.classList.add('wrap'); el.textContent = text; tr.appendChild(el); }
-      td(r.sekolah); td(r.kabkota); td(r.jumlah_kendala, 'num'); td(r.daftar_kendala, null, true);
-      kBody.appendChild(tr);
     });
   }
 
@@ -901,7 +906,7 @@
     th.addEventListener('click', function(){
       var f = th.getAttribute('data-sort');
       if (sortState.field === f) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-      else { sortState.field = f; sortState.dir = (f === 'rank' || f === 'sekolah' || f === 'jenjang' || f === 'kabkota' || f === 'kategori') ? 'asc' : 'desc'; }
+      else { sortState.field = f; sortState.dir = (f === 'sekolah' || f === 'jenjang' || f === 'kabkota' || f === 'npsn') ? 'asc' : 'desc'; }
       renderTable();
     });
   });

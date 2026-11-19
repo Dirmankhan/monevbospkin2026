@@ -76,6 +76,7 @@
   table.rank-table th{ font-size:.72rem; color:var(--fg-muted); font-weight:600; cursor:pointer; user-select:none; text-transform:uppercase; letter-spacing:.03em; }
   table.rank-table th.num, table.rank-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
   table.rank-table tbody tr:hover{ background:var(--accent-soft); }
+  table.rank-table tr.row-total{ font-weight:600; border-top:1px solid var(--border); }
   table.rank-table.full-table{ table-layout:fixed; min-width:0; }
   table.rank-table.full-table th, table.rank-table.full-table td{ white-space:normal; overflow-wrap:break-word; word-break:break-word; }
   .tier-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.75rem; font-weight:600; }
@@ -143,6 +144,17 @@
       <table class="rank-table">
         <thead><tr><th>Jenis RTL</th><th class="num">Sudah Selesai</th><th class="num">Belum Selesai</th><th class="num">% Selesai</th></tr></thead>
         <tbody id="rtl-rekap-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="capaian">
+    <h2>Capaian per Dimensi Skor Kinerja</h2>
+    <p class="panel-sub">Rata-rata capaian (skala 0–100) pada lima dimensi penilaian dan skor total gabungannya. Lihat bobot masing-masing pada bagian Metodologi di bawah.</p>
+    <div class="table-scroll">
+      <table class="rank-table">
+        <thead><tr><th>Dimensi</th><th class="num">Bobot</th><th class="num">Capaian Rata-rata</th></tr></thead>
+        <tbody id="capaian-dimensi-body"></tbody>
       </table>
     </div>
   </section>
@@ -711,6 +723,31 @@
     });
   }
 
+  function computeCapaianDimensi(skor){
+    var n = skor.length || 1;
+    function avg(key){ return Math.round(skor.reduce(function(s,r){ return s + r[key]; }, 0) / n * 10) / 10; }
+    return [
+      { dimensi: 'Administrasi Keuangan', bobot: '30%', capaian: avg('admin_score') },
+      { dimensi: 'Serapan Dana', bobot: '15%', capaian: avg('serapan_score') },
+      { dimensi: 'Bimtek', bobot: '20%', capaian: avg('bimtek_score') },
+      { dimensi: 'Implementasi', bobot: '25%', capaian: avg('implementasi_score') },
+      { dimensi: 'Publikasi Praktik Baik', bobot: '10%', capaian: avg('inovasi_score') },
+      { dimensi: 'Skor Total', bobot: '100%', capaian: avg('skor_total') }
+    ];
+  }
+
+  function renderCapaianDimensi(skor){
+    var body = document.getElementById('capaian-dimensi-body');
+    body.replaceChildren();
+    computeCapaianDimensi(skor).forEach(function(r){
+      var tr = document.createElement('tr');
+      if (r.dimensi === 'Skor Total') tr.className = 'row-total';
+      function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
+      td(r.dimensi); td(r.bobot, 'num'); td(r.capaian, 'num');
+      body.appendChild(tr);
+    });
+  }
+
   function renderKendala(skor_raw_rows){
     var summary = computeKendalaSummary(skor_raw_rows);
     var sBody = document.getElementById('kendala-summary-body');
@@ -760,6 +797,7 @@
     }
 
     renderRtlRekap(rawRows);
+    renderCapaianDimensi(skor);
 
     drawHBar(document.getElementById('chart-wilayah'), computeSkorPerKabkota(skor), {
       labelKey: 'kabkota', valueKey: 'avg_skor',

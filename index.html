@@ -147,19 +147,11 @@
 
   <section class="panel" id="rtl">
     <h2>Rekap Penyelesaian RTL</h2>
-    <p class="panel-sub">RTL Tata Kelola/SPMI: persentase butir yang telah terlaksana, sesuai pilihan isian pada formulir monev.</p>
+    <p class="panel-sub">Persentase butir RTL yang telah terlaksana per jenis, sesuai pilihan isian pada formulir monev (C1a/C1b/C1c). Angka adalah jumlah satuan pendidikan.</p>
     <div class="table-scroll">
       <table class="rank-table">
-        <thead><tr><th>Persentase RTL Terlaksana</th><th class="num">Jumlah SP</th><th class="num">% dari Total</th></tr></thead>
-        <tbody id="rtl-spmi-interval-body"></tbody>
-      </table>
-    </div>
-
-    <p class="panel-sub" style="margin-top:18px; margin-bottom:8px;">RTL Literasi-Numerasi dan Digitalisasi Pembelajaran: sudah/belum dimiliki satuan pendidikan.</p>
-    <div class="table-scroll">
-      <table class="rank-table">
-        <thead><tr><th>Jenis RTL</th><th class="num">Sudah Selesai</th><th class="num">Belum Selesai</th><th class="num">% Selesai</th></tr></thead>
-        <tbody id="rtl-rekap-body"></tbody>
+        <thead><tr><th>Persentase RTL Terlaksana</th><th class="num">Tata Kelola/SPMI</th><th class="num">Literasi-Numerasi</th><th class="num">Digitalisasi Pembelajaran</th></tr></thead>
+        <tbody id="rtl-interval-crosstab-body"></tbody>
       </table>
     </div>
 
@@ -738,22 +730,13 @@
   }
 
   function renderRtlRekap(rawRows){
-    var body = document.getElementById('rtl-rekap-body');
+    var body = document.getElementById('rtl-interval-crosstab-body');
     body.replaceChildren();
-    computeRtlRekap(rawRows).forEach(function(r){
+    computeRtlIntervalCrosstab(rawRows).forEach(function(r){
       var tr = document.createElement('tr');
       function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.jenis); td(r.selesai, 'num'); td(r.belum, 'num'); td(r.persen + '%', 'num');
+      td(r.rentang); td(r.spmi, 'num'); td(r.litnum, 'num'); td(r.digital, 'num');
       body.appendChild(tr);
-    });
-
-    var intervalBody = document.getElementById('rtl-spmi-interval-body');
-    intervalBody.replaceChildren();
-    computeRtlSpmiInterval(rawRows).forEach(function(r){
-      var tr = document.createElement('tr');
-      function td(text, cls){ var el = document.createElement('td'); if (cls) el.className = cls; el.textContent = text; tr.appendChild(el); }
-      td(r.rentang); td(r.jumlah, 'num'); td(r.persen + '%', 'num');
-      intervalBody.appendChild(tr);
     });
 
     var b = computeBimtekLengkap(rawRows);
@@ -866,7 +849,8 @@
       manfaat_rapor: row.manfaat_rapor || '', publikasi: row.publikasi || '',
       lit_plan: num(row.lit_plan), digital_plan: num(row.digital_plan), spmi_plan: num(row.spmi_plan),
       lit_real: num(row.lit_real), digital_real: num(row.digital_real), spmi_real: num(row.spmi_real),
-      produk_bimtek: row.produk_bimtek || ''
+      produk_bimtek: row.produk_bimtek || '',
+      rtl_litnum_pct: row.rtl_litnum_pct || '', rtl_digital_pct: row.rtl_digital_pct || ''
     };
   }
 
@@ -877,24 +861,15 @@
     return Array.from(byNpsn.values());
   }
 
-  function computeRtlRekap(rows){
-    var total = rows.length || 1;
-    var defs = [
-      { jenis: 'Literasi-Numerasi', match: 'RTL implementasi literasi-numerasi di kelas' },
-      { jenis: 'Digitalisasi Pembelajaran', match: 'RTL implementasi digitalisasi pembelajaran' }
-    ];
-    return defs.map(function(d){
-      var selesai = rows.filter(function(r){ return (r.produk_bimtek || '').indexOf(d.match) >= 0; }).length;
-      return { jenis: d.jenis, selesai: selesai, belum: total - selesai, persen: Math.round(selesai / total * 100) };
-    });
-  }
-
-  function computeRtlSpmiInterval(rows){
-    var total = rows.length || 1;
+  function computeRtlIntervalCrosstab(rows){
     var rentangs = ['0% – 25%', '26% – 50%', '51% – 75%', '76% – 100%'];
     return rentangs.map(function(r){
-      var jumlah = rows.filter(function(row){ return row.rtl_pct === r; }).length;
-      return { rentang: r, jumlah: jumlah, persen: Math.round(jumlah / total * 100) };
+      return {
+        rentang: r,
+        spmi: rows.filter(function(row){ return row.rtl_pct === r; }).length,
+        litnum: rows.filter(function(row){ return row.rtl_litnum_pct === r; }).length,
+        digital: rows.filter(function(row){ return row.rtl_digital_pct === r; }).length
+      };
     });
   }
 

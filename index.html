@@ -149,6 +149,12 @@
     </section>
   </div>
 
+  <section class="panel" id="jenjang">
+    <h2>Rata-rata Skor per Jenjang</h2>
+    <p class="panel-sub">Jumlah di ujung batang menunjukkan banyaknya satuan pendidikan responden.</p>
+    <div class="chart-box" id="chart-jenjang"></div>
+  </section>
+
   <section class="panel" id="anggaran">
     <h2>Rencana vs Realisasi Anggaran per Komponen</h2>
     <p class="panel-sub">Akumulasi seluruh satuan pendidikan, tiga komponen pembiayaan BOSP Kinerja Terbaik (Rp).</p>
@@ -369,6 +375,24 @@
     var out = Object.keys(g).map(function(k){ return { kabkota: k, avg_skor: Math.round(g[k].total / g[k].jumlah * 10) / 10, jumlah: g[k].jumlah }; });
     out.sort(function(a,b){ return b.avg_skor - a.avg_skor; });
     return out;
+  }
+
+  function computeSkorPerJenjang(skor){
+    var g = {};
+    skor.forEach(function(r){
+      var k = r.jenjang || 'Tidak diketahui';
+      if (!g[k]) g[k] = { jenjang: k, total: 0, jumlah: 0 };
+      g[k].total += r.skor_total; g[k].jumlah += 1;
+    });
+    var order = ['SD','SMP','SMA'];
+    var keys = Object.keys(g).sort(function(a,b){
+      var ia = order.indexOf(a), ib = order.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    return keys.map(function(k){ return { jenjang: k, avg_skor: Math.round(g[k].total / g[k].jumlah * 10) / 10, jumlah: g[k].jumlah }; });
   }
 
   function computeRealisasiKomponen(rows){
@@ -719,6 +743,15 @@
     });
 
     drawStacked(document.getElementById('chart-kepatuhan'), computeKepatuhan(rawRows), CHART_PAIR_HEIGHT);
+
+    drawHBar(document.getElementById('chart-jenjang'), computeSkorPerJenjang(skor), {
+      labelKey: 'jenjang', valueKey: 'avg_skor',
+      colorFn: function(){ return 'var(--ok)'; },
+      suffix: function(d){ return '  (n=' + d.jumlah + ')'; },
+      ariaLabel: 'Rata-rata skor per jenjang',
+      onHover: function(ev, r){ showTip(ev, r.jenjang + ' — rata-rata skor ' + r.avg_skor + ', ' + r.jumlah + ' satuan pendidikan'); },
+      onLeave: hideTip
+    });
     drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows));
 
     renderKendala(rawRows);

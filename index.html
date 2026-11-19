@@ -36,6 +36,11 @@
   html,body{ margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body); }
   body{ padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); }
   .wrap{ max-width:1180px; margin:0 auto; padding:28px 0 56px; display:flex; flex-direction:column; gap:28px; }
+  .global-filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .global-filters-label{ font-size:.72rem; color:var(--fg-muted); text-transform:uppercase; letter-spacing:.05em; }
+  .global-filters select{ font:inherit; font-size:.85rem; border:1px solid var(--border); border-radius:8px; padding:6px 10px; background:var(--panel); color:var(--fg); }
+  .global-filters-reset{ font:inherit; font-size:.78rem; border:1px solid var(--border); background:transparent; color:var(--fg-muted); padding:5px 10px; border-radius:999px; cursor:pointer; }
+  .global-filters-reset:hover{ color:var(--fg); border-color:var(--fg-muted); }
   header.page-head h1{ font-family:var(--font-display); font-weight:600; font-size:clamp(1.6rem,4vw,2.1rem); margin:0 0 6px; text-wrap:balance; }
   header.page-head p{ margin:0; color:var(--fg-muted); max-width:66ch; line-height:1.5; }
   header.page-head .headline{ margin-top:10px; color:var(--fg); }
@@ -91,6 +96,13 @@
 </head>
 <body>
 <div class="wrap">
+  <div class="global-filters">
+    <span class="global-filters-label">Filter:</span>
+    <select id="global-kabkota" aria-label="Filter kabupaten/kota"></select>
+    <select id="global-jenjang" aria-label="Filter jenjang"></select>
+    <button type="button" id="global-filter-reset" class="global-filters-reset" hidden>Hapus filter</button>
+  </div>
+
   <header class="page-head">
     <h1>Monev BOSP Kinerja Terbaik</h1>
     <p>Hasil pemantauan dan evaluasi pelaksanaan Bantuan Operasional Satuan Pendidikan (BOSP) Kinerja Terbaik pada satuan pendidikan penerima di Provinsi Nusa Tenggara Barat, dihimpun langsung dari jawaban formulir monev.</p>
@@ -149,21 +161,23 @@
     </section>
   </div>
 
-  <section class="panel" id="jenjang">
-    <h2>Rata-rata Skor per Jenjang</h2>
-    <p class="panel-sub">Jumlah di ujung batang menunjukkan banyaknya satuan pendidikan responden.</p>
-    <div class="chart-box" id="chart-jenjang"></div>
-  </section>
+  <div class="two-col">
+    <section class="panel" id="jenjang">
+      <h2>Rata-rata Skor per Jenjang</h2>
+      <p class="panel-sub">Jumlah di ujung batang menunjukkan banyaknya satuan pendidikan responden.</p>
+      <div class="chart-box" id="chart-jenjang"></div>
+    </section>
 
-  <section class="panel" id="anggaran">
-    <h2>Rencana vs Realisasi Anggaran per Komponen</h2>
-    <p class="panel-sub">Akumulasi seluruh satuan pendidikan, tiga komponen pembiayaan BOSP Kinerja Terbaik (Rp).</p>
-    <div class="chart-box" id="chart-anggaran"></div>
-    <div class="legend">
-      <span><span class="dot" style="background:var(--chart-muted)"></span>Rencana (RKAS)</span>
-      <span><span class="dot" style="background:var(--ok)"></span>Realisasi</span>
-    </div>
-  </section>
+    <section class="panel" id="anggaran">
+      <h2>Rencana vs Realisasi Anggaran per Komponen</h2>
+      <p class="panel-sub">Akumulasi seluruh satuan pendidikan, tiga komponen pembiayaan BOSP Kinerja Terbaik (Rp).</p>
+      <div class="chart-box" id="chart-anggaran"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--chart-muted)"></span>Rencana (RKAS)</span>
+        <span><span class="dot" style="background:var(--ok)"></span>Realisasi</span>
+      </div>
+    </section>
+  </div>
 
   <section class="panel" id="kendala">
     <h2>Ringkasan Kendala Pelaksanaan</h2>
@@ -185,11 +199,9 @@
 
   <section class="panel" id="tabel">
     <h2>Tabel Peringkat Lengkap</h2>
-    <p class="panel-sub">Klik judul kolom untuk mengurutkan. Gunakan pencarian dan filter untuk menyaring satuan pendidikan.</p>
+    <p class="panel-sub">Klik judul kolom untuk mengurutkan. Gunakan pencarian untuk menyaring satuan pendidikan, atau filter kabupaten/jenjang di bagian atas halaman.</p>
     <div class="table-controls">
       <input type="search" id="tabel-cari" placeholder="Cari nama satuan pendidikan atau NPSN...">
-      <select id="tabel-jenjang" aria-label="Filter jenjang"></select>
-      <select id="tabel-kabkota" aria-label="Filter kabupaten/kota"></select>
     </div>
     <div class="table-scroll">
       <table class="rank-table full-table">
@@ -627,25 +639,39 @@
   var sortState = { field: 'rank', dir: 'asc' };
   var latestSkor = [];
 
-  function renderFilters(skor){
-    var jenjangSel = document.getElementById('tabel-jenjang');
-    var kabkotaSel = document.getElementById('tabel-kabkota');
-    var jVals = Array.from(new Set(skor.map(function(r){ return r.jenjang; }))).sort();
-    var kVals = Array.from(new Set(skor.map(function(r){ return r.kabkota; }))).sort();
-    var jCur = jenjangSel.value, kCur = kabkotaSel.value;
-    jenjangSel.replaceChildren.apply(jenjangSel, [new Option('Semua Jenjang','')].concat(jVals.map(function(v){ return new Option(v, v); })));
+  // Populate the global filter selects from the FULL unfiltered dataset, so
+  // options never disappear just because the other filter narrowed the view.
+  function renderGlobalFilters(allRows){
+    var kabkotaSel = document.getElementById('global-kabkota');
+    var jenjangSel = document.getElementById('global-jenjang');
+    var kVals = Array.from(new Set(allRows.map(function(r){ return r.kabkota; }))).sort();
+    var jVals = Array.from(new Set(allRows.map(function(r){ return r.jenjang; }))).sort();
+    var kCur = kabkotaSel.value, jCur = jenjangSel.value;
     kabkotaSel.replaceChildren.apply(kabkotaSel, [new Option('Semua Kabupaten/Kota','')].concat(kVals.map(function(v){ return new Option(v, v); })));
-    jenjangSel.value = jVals.indexOf(jCur) >= 0 ? jCur : '';
+    jenjangSel.replaceChildren.apply(jenjangSel, [new Option('Semua Jenjang','')].concat(jVals.map(function(v){ return new Option(v, v); })));
     kabkotaSel.value = kVals.indexOf(kCur) >= 0 ? kCur : '';
+    jenjangSel.value = jVals.indexOf(jCur) >= 0 ? jCur : '';
+  }
+
+  function updateGlobalFilterResetVisibility(){
+    var kabkotaSel = document.getElementById('global-kabkota');
+    var jenjangSel = document.getElementById('global-jenjang');
+    var resetBtn = document.getElementById('global-filter-reset');
+    resetBtn.hidden = !(kabkotaSel.value || jenjangSel.value);
+  }
+
+  function applyGlobalFilters(allRows){
+    var kabkotaSel = document.getElementById('global-kabkota');
+    var jenjangSel = document.getElementById('global-jenjang');
+    var rows = allRows;
+    if (kabkotaSel.value) rows = rows.filter(function(r){ return r.kabkota === kabkotaSel.value; });
+    if (jenjangSel.value) rows = rows.filter(function(r){ return r.jenjang === jenjangSel.value; });
+    renderAll(rows);
   }
 
   function renderTable(){
     var rows = latestSkor.slice();
-    var jenjangSel = document.getElementById('tabel-jenjang');
-    var kabkotaSel = document.getElementById('tabel-kabkota');
     var q = (document.getElementById('tabel-cari').value || '').trim().toLowerCase();
-    if (jenjangSel.value) rows = rows.filter(function(r){ return r.jenjang === jenjangSel.value; });
-    if (kabkotaSel.value) rows = rows.filter(function(r){ return r.kabkota === kabkotaSel.value; });
     if (q) rows = rows.filter(function(r){ return (r.sekolah + ' ' + r.npsn).toLowerCase().indexOf(q) >= 0; });
 
     var f = sortState.field, dir = sortState.dir === 'asc' ? 1 : -1;
@@ -757,7 +783,6 @@
     drawGroupedBar(document.getElementById('chart-anggaran'), computeRealisasiKomponen(rawRows));
 
     renderKendala(rawRows);
-    renderFilters(skor);
     renderTable();
   }
 
@@ -804,7 +829,10 @@
       download: true, header: true, skipEmptyLines: true,
       complete: function(res){
         var rows = dedupByNpsn((res.data || []).filter(function(r){ return r.sekolah; }).map(parseRow));
-        renderAll(rows);
+        window.__allRawRows = rows;
+        renderGlobalFilters(rows);
+        updateGlobalFilterResetVisibility();
+        applyGlobalFilters(rows);
         setText('last-updated', 'Data dimuat pukul ' + new Date().toLocaleTimeString('id-ID') + ' · ' + rows.length + ' satuan pendidikan');
       },
       error: function(err){
@@ -815,8 +843,20 @@
 
   document.getElementById('refresh-btn').addEventListener('click', loadData);
   document.getElementById('tabel-cari').addEventListener('input', renderTable);
-  document.getElementById('tabel-jenjang').addEventListener('change', renderTable);
-  document.getElementById('tabel-kabkota').addEventListener('change', renderTable);
+  document.getElementById('global-kabkota').addEventListener('change', function(){
+    updateGlobalFilterResetVisibility();
+    if (window.__allRawRows) applyGlobalFilters(window.__allRawRows);
+  });
+  document.getElementById('global-jenjang').addEventListener('change', function(){
+    updateGlobalFilterResetVisibility();
+    if (window.__allRawRows) applyGlobalFilters(window.__allRawRows);
+  });
+  document.getElementById('global-filter-reset').addEventListener('click', function(){
+    document.getElementById('global-kabkota').value = '';
+    document.getElementById('global-jenjang').value = '';
+    updateGlobalFilterResetVisibility();
+    if (window.__allRawRows) applyGlobalFilters(window.__allRawRows);
+  });
   Array.prototype.forEach.call(document.querySelectorAll('table.rank-table th[data-sort]'), function(th){
     th.addEventListener('click', function(){
       var f = th.getAttribute('data-sort');

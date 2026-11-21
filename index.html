@@ -42,6 +42,7 @@
   .global-filters-reset{ font:inherit; font-size:.78rem; border:1px solid var(--border); background:transparent; color:var(--fg-muted); padding:5px 10px; border-radius:999px; cursor:pointer; }
   .global-filters-reset:hover{ color:var(--fg); border-color:var(--fg-muted); }
   header.page-head h1{ font-family:var(--font-display); font-weight:600; font-size:clamp(1.6rem,4vw,2.1rem); margin:0 0 6px; text-wrap:balance; }
+  .frozen-badge{ display:inline-block; vertical-align:middle; font-family:var(--font-body); font-size:.62rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--warn); background:color-mix(in srgb, var(--warn) 16%, transparent); border:1px solid var(--warn); border-radius:999px; padding:3px 10px; margin-left:10px; }
   header.page-head p{ margin:0; color:var(--fg-muted); max-width:66ch; line-height:1.5; }
   header.page-head .headline{ margin-top:10px; color:var(--fg); }
   header.page-head .headline b{ font-variant-numeric:tabular-nums; }
@@ -113,7 +114,7 @@
   </div>
 
   <header class="page-head">
-    <h1>Monev BOSP Kinerja Terbaik</h1>
+    <h1>Monev BOSP Kinerja Terbaik <span id="frozen-badge" class="frozen-badge" hidden>Data Beku · Live Nonaktif</span></h1>
     <p>Hasil pemantauan dan evaluasi pelaksanaan Bantuan Operasional Satuan Pendidikan (BOSP) Kinerja Terbaik pada satuan pendidikan penerima di Provinsi Nusa Tenggara Barat, dihimpun langsung dari jawaban formulir monev.</p>
     <p class="headline" id="headline">Memuat data…</p>
     <div class="meta-row">
@@ -272,9 +273,16 @@
 <script>
 (function(){
   // ====== CONFIG ======
+  // Mode live dinonaktifkan sementara (2026-11-21): dashboard memakai data beku
+  // (snapshot) di data/snapshot.csv dan TIDAK mengikuti penambahan data baru di
+  // sheet, walaupun ada jawaban monev baru masuk. Untuk mengaktifkan kembali
+  // mode live, set LIVE_MODE = true (CSV_URL publish-to-web di bawah ini tetap
+  // disimpan supaya tidak perlu dicari ulang).
+  var LIVE_MODE = false;
   // URL CSV hasil "Publish to web" dari tab "Dashboard Data" (Google Sheets).
   var CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTqPmWNhSvVLif9o3bJjY9wXd_7f9BOZlHgEav-aRftmvKZcCEdrkK6Zy1XnUDEnDp9pcVBK8OE82Oz/pub?gid=888699082&single=true&output=csv";
-  var AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+  var SNAPSHOT_URL = "data/snapshot.csv";
+  var AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes, hanya dipakai saat LIVE_MODE true
 
   // Tinggi target yang sama untuk grafik "Rata-rata Skor per Kabupaten/Kota"
   // dan "Kepatuhan Administrasi Keuangan" supaya kedua panel proporsional.
@@ -915,7 +923,10 @@
 
   function loadData(){
     setText('last-updated', 'Memuat data…');
-    Papa.parse(CSV_URL + (CSV_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now(), {
+    var url = LIVE_MODE
+      ? CSV_URL + (CSV_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now()
+      : SNAPSHOT_URL;
+    Papa.parse(url, {
       download: true, header: true, skipEmptyLines: true,
       complete: function(res){
         var rows = dedupByNpsn((res.data || []).filter(function(r){ return r.sekolah; }).map(parseRow));
@@ -923,7 +934,11 @@
         renderGlobalFilters(rows);
         updateGlobalFilterResetVisibility();
         applyGlobalFilters(rows);
-        setText('last-updated', 'Data dimuat pukul ' + new Date().toLocaleTimeString('id-ID') + ' · ' + rows.length + ' satuan pendidikan');
+        if (LIVE_MODE) {
+          setText('last-updated', 'Data dimuat pukul ' + new Date().toLocaleTimeString('id-ID') + ' · ' + rows.length + ' satuan pendidikan');
+        } else {
+          setText('last-updated', 'Mode live dinonaktifkan sementara — menampilkan data beku per 21 Nov 2026 · ' + rows.length + ' satuan pendidikan. Jawaban baru belum ikut tampil.');
+        }
       },
       error: function(err){
         setText('last-updated', 'Gagal memuat data: ' + (err && err.message ? err.message : 'periksa koneksi.'));
@@ -961,8 +976,13 @@
     resizeTimer = setTimeout(function(){ if (window.__lastRawRows && window.__lastRawRows.length) renderAll(window.__lastRawRows); }, 150);
   });
 
+  if (!LIVE_MODE) {
+    document.getElementById('frozen-badge').hidden = false;
+    document.getElementById('refresh-btn').textContent = 'Muat ulang (data beku)';
+  }
+
   loadData();
-  setInterval(loadData, AUTO_REFRESH_MS);
+  if (LIVE_MODE) setInterval(loadData, AUTO_REFRESH_MS);
 })();
 </script>
 </body>
